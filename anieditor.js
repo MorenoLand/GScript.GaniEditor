@@ -9,6 +9,7 @@ class AniSprite {
         this.rotation = 0.0;
         this.xscale = 1.0;
         this.yscale = 1.0;
+        this._zoom = 1.0;
         this.mode = undefined;
         this.colorEffectEnabled = false;
         this.colorEffect = {r: 255, g: 255, b: 255, a: 255};
@@ -35,6 +36,7 @@ class AniSprite {
         retval.rotation = this.rotation;
         retval.xscale = this.xscale;
         retval.yscale = this.yscale;
+        retval._zoom = this._zoom;
         retval.mode = this.mode;
         retval.updateBoundingBox();
         return retval;
@@ -45,8 +47,8 @@ class AniSprite {
         const rad = this.rotation * Math.PI / 180;
         const cos = Math.cos(rad);
         const sin = Math.sin(rad);
-        const w = this.width * this.xscale;
-        const h = this.height * this.yscale;
+        const w = this.width * this.xscale * (this._zoom || 1.0);
+        const h = this.height * this.yscale * (this._zoom || 1.0);
         const corners = [
             {x: -w/2, y: -h/2},
             {x: w/2, y: -h/2},
@@ -76,6 +78,7 @@ class FramePieceSprite {
         this.spriteName = "";
         this.xscale = 1.0;
         this.yscale = 1.0;
+        this._zoom = 1.0;
         this.rotation = 0.0;
     }
     toString(ani) {
@@ -434,8 +437,9 @@ function setCurrentHistoryLoggingEnabled(value) {
     if (currentAnimation) currentAnimation.historyLoggingEnabled = value;
 }
 let dragStartState = null;
-let clipboardFrame = null;
+let clipboardFrames = null;
 let clipboardSprite = null;
+let clipboardPieces = null;
 let dragButton = null;
 let dragOffset = null;
 let dragStartMousePos = null;
@@ -765,7 +769,7 @@ function lightenColor(color, amount) {
 
 function drawGrid(ctx) {
     ctx.imageSmoothingEnabled = false;
-    const lightColor = lightenColor(backgroundColor, 0.4);
+    const lightColor = getComputedStyle(document.documentElement).getPropertyValue('--canvas-grid').trim() || lightenColor(backgroundColor, 0.4);
     ctx.strokeStyle = lightColor;
     ctx.globalAlpha = 0.6;
     ctx.lineWidth = 1;
@@ -806,12 +810,14 @@ function drawSprite(ctx, sprite, x, y, level = 0, drawnSprites = null) {
     if (img) {
         const imageName = sprite.type === "CUSTOM" ? sprite.customImageName.toLowerCase() : (currentAnimation ? currentAnimation.getDefaultImageName(sprite.type) : "").toLowerCase();
         const isLightImage = (sprite.mode === 0) || (sprite.mode === undefined && localStorage.getItem("editorLightEffects") !== "false" && (imageName.includes("light") || sprite.comment.toLowerCase().includes("light")));
+        const _sz = sprite._zoom || 1.0;
+        const _sx = sprite.xscale * _sz, _sy = sprite.yscale * _sz;
         ctx.save();
         ctx.imageSmoothingEnabled = false;
         ctx.translate(Math.round(x), Math.round(y));
-        if (sprite.rotation !== 0 || sprite.xscale !== 1 || sprite.yscale !== 1) {
+        if (sprite.rotation !== 0 || _sx !== 1 || _sy !== 1) {
             ctx.translate(sprite.width / 2, sprite.height / 2);
-            ctx.scale(sprite.xscale, sprite.yscale);
+            ctx.scale(_sx, _sy);
             ctx.rotate(sprite.rotation * Math.PI / 180);
             ctx.translate(-sprite.width / 2, -sprite.height / 2);
         }
@@ -852,15 +858,9 @@ function drawSprite(ctx, sprite, x, y, level = 0, drawnSprites = null) {
                 sprite._lightCacheKey = cacheKey;
             }
             ctx.globalCompositeOperation = "lighter";
-            for (let glowPass = 0; glowPass < 3; glowPass++) {
-                const scale = 1.0 + (glowPass * 0.2);
-                const offsetX = (sprite.width * (scale - 1.0)) / 2;
-                const offsetY = (sprite.height * (scale - 1.0)) / 2;
-                ctx.globalAlpha = 0.6 / (glowPass + 1);
-                ctx.drawImage(sprite._lightCanvas, -offsetX, -offsetY, sprite.width * scale, sprite.height * scale);
-            }
-            ctx.globalCompositeOperation = "source-over";
             ctx.globalAlpha = 1.0;
+            ctx.drawImage(sprite._lightCanvas, 0, 0, sprite.width, sprite.height);
+            ctx.globalCompositeOperation = "source-over";
         } else if (sprite.mode === 1) {
             const colorKey = sprite.colorEffectEnabled && sprite.colorEffect ? `${sprite.colorEffect.r},${sprite.colorEffect.g},${sprite.colorEffect.b},${sprite.colorEffect.a}` : "none";
             if (!sprite._cachedColorCanvas || sprite._cachedColorKey !== colorKey || sprite._cachedImageSrc !== img.src) {
@@ -938,9 +938,9 @@ function drawSprite(ctx, sprite, x, y, level = 0, drawnSprites = null) {
     } else {
         ctx.save();
         ctx.translate(x, y);
-        if (sprite.rotation !== 0 || sprite.xscale !== 1 || sprite.yscale !== 1) {
+        if (sprite.rotation !== 0 || _sx !== 1 || _sy !== 1) {
             ctx.translate(sprite.width / 2, sprite.height / 2);
-            ctx.scale(sprite.xscale, sprite.yscale);
+            ctx.scale(_sx, _sy);
             ctx.rotate(sprite.rotation * Math.PI / 180);
             ctx.translate(-sprite.width / 2, -sprite.height / 2);
         }
@@ -1138,7 +1138,7 @@ function redraw() {
             ctx.restore();
         }
         ctx.save();
-        ctx.strokeStyle = "#404040";
+        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--quadrant-divider').trim() || "#404040";
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(width / 2, 0);
@@ -1299,20 +1299,29 @@ function drawFrame(ctx, frame, dir) {
             if (sprite) {
                 const isSelected = selectedPieces.has(piece);
                 if (isSelected) {
-                    const borderColor = localStorage.getItem("editorSelectionBorderColor") || "#00ff00";
-                    const borderThickness = parseInt(localStorage.getItem("editorSelectionBorderThickness")) || 2;
+                    const _rs2 = getComputedStyle(document.documentElement);
+                    const borderColor = _rs2.getPropertyValue('--selection-border-color').trim() || localStorage.getItem("editorSelectionBorderColor") || "#00ff00";
+                    const _cssThick = _rs2.getPropertyValue('--selection-border-thickness').trim();
+                    const borderThickness = _cssThick ? parseFloat(_cssThick) : (parseInt(localStorage.getItem("editorSelectionBorderThickness")) || 2);
+                    const _cssOpacity = _rs2.getPropertyValue('--selection-border-opacity').trim();
+                    const borderOpacity = _cssOpacity ? parseFloat(_cssOpacity) : (parseInt(localStorage.getItem("editorSelectionBorderOpacity") ?? "100") / 100);
+                    ctx.save();
+                    ctx.globalAlpha = borderOpacity;
                     ctx.strokeStyle = borderColor;
                     ctx.lineWidth = borderThickness;
                     const bb = piece.getBoundingBox(currentAnimation);
                     ctx.strokeRect(bb.x - borderThickness, bb.y - borderThickness, bb.width + borderThickness * 2, bb.height + borderThickness * 2);
+                    ctx.restore();
                 }
                 ctx.save();
                 ctx.imageSmoothingEnabled = false;
                 ctx.translate(Math.round(piece.xoffset), Math.round(piece.yoffset));
-                if (piece.rotation !== 0 || piece.xscale !== 1 || piece.yscale !== 1) {
+                const _pz = piece._zoom || 1.0;
+                const _px = piece.xscale * _pz, _py = piece.yscale * _pz;
+                if (piece.rotation !== 0 || _px !== 1 || _py !== 1) {
                     const spriteSize = piece.getSize(currentAnimation);
                     ctx.translate(spriteSize.width / 2, spriteSize.height / 2);
-                    ctx.scale(piece.xscale, piece.yscale);
+                    ctx.scale(_px, _py);
                     ctx.rotate(piece.rotation * Math.PI / 180);
                     ctx.translate(-spriteSize.width / 2, -spriteSize.height / 2);
                 }
@@ -1359,11 +1368,18 @@ function drawFrame(ctx, frame, dir) {
                 }
                 ctx.drawImage(cachedIcon, x, y);
                 if (isSelected) {
-                    const borderColor = localStorage.getItem("editorSelectionBorderColor") || "#00ff00";
-                    const borderThickness = parseInt(localStorage.getItem("editorSelectionBorderThickness")) || 2;
+                    const _rs2 = getComputedStyle(document.documentElement);
+                    const borderColor = _rs2.getPropertyValue('--selection-border-color').trim() || localStorage.getItem("editorSelectionBorderColor") || "#00ff00";
+                    const _cssThick = _rs2.getPropertyValue('--selection-border-thickness').trim();
+                    const borderThickness = _cssThick ? parseFloat(_cssThick) : (parseInt(localStorage.getItem("editorSelectionBorderThickness")) || 2);
+                    const _cssOpacity = _rs2.getPropertyValue('--selection-border-opacity').trim();
+                    const borderOpacity = _cssOpacity ? parseFloat(_cssOpacity) : (parseInt(localStorage.getItem("editorSelectionBorderOpacity") ?? "100") / 100);
+                    ctx.save();
+                    ctx.globalAlpha = borderOpacity;
                     ctx.strokeStyle = borderColor;
                     ctx.lineWidth = borderThickness;
                     ctx.strokeRect(x - borderThickness, y - borderThickness, iconSize + borderThickness * 2, iconSize + borderThickness * 2);
+                    ctx.restore();
                 }
                 ctx.restore();
             } else {
@@ -1410,6 +1426,8 @@ function drawQuadrant(ctx, frame, dir, quadrantX, quadrantY, quadrantWidth, quad
 }
 
 function getTimelineBackgroundColor() {
+    const cssBg = getComputedStyle(document.documentElement).getPropertyValue('--timeline-bg').trim();
+    if (cssBg) return cssBg;
     const scheme = localStorage.getItem("ganiEditorColorScheme") || "default";
     if (scheme === "default") return "#2b2b2b";
     const schemes = {
@@ -1488,6 +1506,11 @@ function drawTimeline() {
     }
     timelineTotalWidth = totalTimelineWidth;
 
+    const _rs = getComputedStyle(document.documentElement);
+    const frameBg = _rs.getPropertyValue('--timeline-frame-bg').trim() || "#8b0000";
+    const frameSelectedBg = _rs.getPropertyValue('--timeline-frame-selected-bg').trim() || "#006400";
+    const frameMultiBg = _rs.getPropertyValue('--timeline-frame-multi-bg').trim() || "#00456b";
+
     const visibleStartX = timelineScrollX;
     const visibleEndX = timelineScrollX + width;
 
@@ -1516,7 +1539,7 @@ function drawTimeline() {
             const dirsWithPieces = frame.pieces.map((dp, idx) => dp.length > 0 ? idx : -1).filter(idx => idx >= 0);
             f12Log(`Frame ${i}: currentDir=${currentDir}, actualDir=${actualDir}, pieces.length=${pieces.length}, but frame has pieces in dirs: [${dirsWithPieces.join(', ')}]`);
         }
-        timelineCtx.fillStyle = selected ? "#006400" : selectedFrames.has(i) ? "#00456b" : "#8b0000";
+        timelineCtx.fillStyle = selected ? frameSelectedBg : selectedFrames.has(i) ? frameMultiBg : frameBg;
         timelineCtx.beginPath();
         const rx = 10, ry = 10;
         const w = frameWidth - 4;
@@ -1586,7 +1609,7 @@ function drawTimeline() {
         const actualDir = getDirIndex(currentDir);
         const pieces = frame.pieces[actualDir] || [];
         timelineCtx.globalAlpha = 0.7;
-        timelineCtx.fillStyle = selected ? "#006400" : "#8b0000";
+        timelineCtx.fillStyle = selected ? frameSelectedBg : frameBg;
         timelineCtx.beginPath();
         const rx = 10, ry = 10;
         const w = frameWidth - 4;
@@ -1772,7 +1795,7 @@ function drawSpritePreview() {
     const width = spritePreviewCanvas.width;
     const height = spritePreviewCanvas.height;
     previewCtx.clearRect(0, 0, width, height);
-    previewCtx.fillStyle = "#353535";
+    previewCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--preview-bg').trim() || "#353535";
     previewCtx.fillRect(0, 0, width, height);
     const scale = Math.pow(1.2, spritePreviewZoom - 3);
     previewCtx.save();
@@ -2129,18 +2152,13 @@ function saveGani(ani) {
             otherCommands.push(`${cmd} ${String(sprite.index).padStart(4)} ${String(attached.index).padStart(4)} ${String(Math.floor(attached.offset.x)).padStart(4)} ${String(Math.floor(attached.offset.y)).padStart(4)}`);
             attachIndex++;
         }
-        if (sprite.xscale === sprite.yscale && sprite.xscale !== 1.0) {
-            otherCommands.push(`ZOOMEFFECT ${String(sprite.index).padStart(4)} ${sprite.xscale}`);
-            if (DEBUG_MODE) f12Log(`Saving ZOOMEFFECT for sprite ${sprite.index}: ${sprite.xscale}`);
+        const _sz = sprite._zoom || 1.0;
+        const effX = sprite.xscale * _sz, effY = sprite.yscale * _sz;
+        if (effX === effY && effX !== 1.0) {
+            otherCommands.push(`ZOOMEFFECT ${String(sprite.index).padStart(4)} ${effX}`);
         } else {
-            if (sprite.xscale !== 1.0) {
-                otherCommands.push(`STRETCHXEFFECT ${String(sprite.index).padStart(4)} ${sprite.xscale}`);
-                if (DEBUG_MODE) f12Log(`Saving STRETCHXEFFECT for sprite ${sprite.index}: ${sprite.xscale}`);
-            }
-            if (sprite.yscale !== 1.0) {
-                otherCommands.push(`STRETCHYEFFECT ${String(sprite.index).padStart(4)} ${sprite.yscale}`);
-                if (DEBUG_MODE) f12Log(`Saving STRETCHYEFFECT for sprite ${sprite.index}: ${sprite.yscale}`);
-            }
+            if (effX !== 1.0) otherCommands.push(`STRETCHXEFFECT ${String(sprite.index).padStart(4)} ${effX}`);
+            if (effY !== 1.0) otherCommands.push(`STRETCHYEFFECT ${String(sprite.index).padStart(4)} ${effY}`);
         }
         if (sprite.rotation !== 0.0) {
             otherCommands.push(`ROTATEEFFECT ${String(sprite.index).padStart(4)} ${sprite.rotation * Math.PI / 180}`);
@@ -2364,7 +2382,7 @@ function updateSpritesList() {
                         insertPiece.spriteName = String(sprite.index);
                         insertPiece.xoffset = -5000;
                         insertPiece.yoffset = -5000;
-                        insertPiece.dragOffset = {x: (sprite.width * sprite.xscale) / 2, y: (sprite.height * sprite.yscale) / 2};
+                        insertPiece.dragOffset = {x: (sprite.width * sprite.xscale * (sprite._zoom || 1)) / 2, y: (sprite.height * sprite.yscale * (sprite._zoom || 1)) / 2};
                         insertPieces = [];
                         for (const sel of selectedSpritesForDeletion) {
                             if (sel.index === sprite.index) continue;
@@ -2392,7 +2410,7 @@ function updateSpritesList() {
                     insertPiece.spriteName = String(sprite.index);
                     insertPiece.xoffset = -5000;
                     insertPiece.yoffset = -5000;
-                    insertPiece.dragOffset = {x: (sprite.width * sprite.xscale) / 2, y: (sprite.height * sprite.yscale) / 2};
+                    insertPiece.dragOffset = {x: (sprite.width * sprite.xscale * (sprite._zoom || 1)) / 2, y: (sprite.height * sprite.yscale * (sprite._zoom || 1)) / 2};
                     selectSprite(sprite);
                     redraw();
                 }
@@ -2515,8 +2533,8 @@ function updateSpritesList() {
         const itemCtx = canvas.getContext("2d");
         itemCtx.imageSmoothingEnabled = false;
         if (img && sprite.width > 0 && sprite.height > 0) {
-            const dispW = Math.max(sprite.width * Math.abs(sprite.xscale), 1);
-            const dispH = Math.max(sprite.height * Math.abs(sprite.yscale), 1);
+            const dispW = Math.max(sprite.width * Math.abs(sprite.xscale) * (sprite._zoom || 1), 1);
+            const dispH = Math.max(sprite.height * Math.abs(sprite.yscale) * (sprite._zoom || 1), 1);
             const scale = Math.min(maxSize / dispW, maxSize / dispH);
             itemCtx.save();
             itemCtx.scale(scale, scale);
@@ -2680,9 +2698,10 @@ function updateSpriteEditor() {
     const xscale = editingSprite.xscale !== undefined ? editingSprite.xscale : 1.0;
     const yscale = editingSprite.yscale !== undefined ? editingSprite.yscale : 1.0;
     const rotation = editingSprite.rotation !== undefined ? editingSprite.rotation : 0.0;
-    const zoom = (editingSprite.xscale === editingSprite.yscale && editingSprite.xscale !== undefined) ? editingSprite.xscale : 1.0;
+    const zoom = editingSprite._zoom !== undefined ? editingSprite._zoom : 1.0;
     if (editingSprite.xscale === undefined) editingSprite.xscale = 1.0;
     if (editingSprite.yscale === undefined) editingSprite.yscale = 1.0;
+    if (editingSprite._zoom === undefined) editingSprite._zoom = 1.0;
     if (editingSprite.rotation === undefined) editingSprite.rotation = 0.0;
     xScale.value = xscale;
     xScaleSlider.value = xscale;
@@ -2905,9 +2924,10 @@ function updateItemSettings() {
         const xscale = piece.xscale !== undefined ? piece.xscale : 1.0;
         const yscale = piece.yscale !== undefined ? piece.yscale : 1.0;
         const rotation = piece.rotation !== undefined ? piece.rotation : 0.0;
-        const zoom = (piece.xscale === piece.yscale && piece.xscale !== undefined) ? piece.xscale : 1.0;
+        const zoom = piece._zoom !== undefined ? piece._zoom : 1.0;
         if (piece.xscale === undefined) piece.xscale = 1.0;
         if (piece.yscale === undefined) piece.yscale = 1.0;
+        if (piece._zoom === undefined) piece._zoom = 1.0;
         if (piece.rotation === undefined) piece.rotation = 0.0;
         if (itemXScale) {
             itemXScale.value = xscale;
@@ -3610,6 +3630,7 @@ function serializeAnimationState() {
                     yoffset: p.yoffset || 0,
                     xscale: p.xscale !== undefined ? p.xscale : 1.0,
                     yscale: p.yscale !== undefined ? p.yscale : 1.0,
+                    _zoom: p._zoom !== undefined ? p._zoom : 1.0,
                     rotation: p.rotation !== undefined ? p.rotation : 0.0,
                     id: p.id
                 };
@@ -3642,6 +3663,7 @@ function serializeAnimationState() {
             height: s.height,
             xscale: s.xscale,
             yscale: s.yscale,
+            _zoom: s._zoom !== undefined ? s._zoom : 1.0,
             rotation: s.rotation,
             colorEffectEnabled: s.colorEffectEnabled,
             colorEffect: s.colorEffect ? {r: s.colorEffect.r, g: s.colorEffect.g, b: s.colorEffect.b, a: s.colorEffect.a} : {r: 255, g: 255, b: 255, a: 255},
@@ -3677,6 +3699,7 @@ function restoreAnimationState(state) {
                 piece.yoffset = pData.yoffset || 0;
                 piece.xscale = pData.xscale !== undefined ? pData.xscale : 1.0;
                 piece.yscale = pData.yscale !== undefined ? pData.yscale : 1.0;
+                piece._zoom = pData._zoom !== undefined ? pData._zoom : 1.0;
                 piece.rotation = pData.rotation !== undefined ? pData.rotation : 0.0;
                 piece.id = pData.id || Math.random().toString(36).substr(2, 9);
                 return piece;
@@ -3712,6 +3735,7 @@ function restoreAnimationState(state) {
         sprite.height = sData.height || 32;
         sprite.xscale = sData.xscale !== undefined ? sData.xscale : 1.0;
         sprite.yscale = sData.yscale !== undefined ? sData.yscale : 1.0;
+        sprite._zoom = sData._zoom !== undefined ? sData._zoom : 1.0;
         sprite.rotation = sData.rotation !== undefined ? sData.rotation : 0.0;
         sprite.colorEffectEnabled = sData.colorEffectEnabled || false;
         sprite.colorEffect = sData.colorEffect ? {...sData.colorEffect} : {r: 255, g: 255, b: 255, a: 255};
@@ -4087,8 +4111,7 @@ function updateTabs() {
             e.stopPropagation();
             e.preventDefault();
             const name = animations[i].fileName || `Animation ${i + 1}`;
-            if (!confirm(`Close "${name}"?`)) return;
-            closeTab(i);
+            showConfirmDialog(`Close "${name}"?`, (confirmed) => { if (confirmed) closeTab(i); });
         };
         close.onmousedown = (e) => {
             e.stopPropagation();
@@ -4324,8 +4347,11 @@ async function restoreSession() {
         }
         if (session.keysSwapped !== undefined) {
             keysSwapped = session.keysSwapped;
-            if (document.getElementById("btnSwapKeys")) {
-                document.getElementById("btnSwapKeys").classList.toggle("active", keysSwapped);
+            const _btn = document.getElementById("btnSwapKeys");
+            if (_btn) {
+                _btn.classList.toggle("active", keysSwapped);
+                const tip = keysSwapped ? "Arrows=Direction, WASD=Move — click to restore" : "WASD=Direction, Arrows=Move — click to swap";
+                if (_btn.hasAttribute("data-title")) _btn.dataset.title = tip; else _btn.title = tip;
             }
         }
         if (session.animations && session.animations.length > 0) {
@@ -4459,6 +4485,246 @@ function showLoadingMessage(message, showOverlay = true) {
         }
     };
 }
+// ── Floating tooltip system ──────────────────────────────────────────────────
+const _tooltipEl = document.createElement('div');
+_tooltipEl.id = 'floatingTooltip';
+document.body.appendChild(_tooltipEl);
+let _tooltipTarget = null;
+
+function _positionTooltip(mx, my) {
+    _tooltipEl.style.left = '0';
+    _tooltipEl.style.top = '0';
+    const tw = _tooltipEl.offsetWidth, th = _tooltipEl.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight, gap = 12;
+    let x = mx - tw / 2;
+    let y = my - th - gap;
+    if (y < 4) y = my + gap;
+    x = Math.max(4, Math.min(x, vw - tw - 4));
+    y = Math.max(4, Math.min(y, vh - th - 4));
+    _tooltipEl.style.left = x + 'px';
+    _tooltipEl.style.top = y + 'px';
+}
+
+document.addEventListener('mouseover', e => {
+    const btn = e.target.closest('button[title]');
+    if (btn) { btn.dataset.title = btn.title; btn.removeAttribute('title'); }
+    const target = e.target.closest('button[data-title]');
+    if (target) {
+        _tooltipTarget = target;
+        _tooltipEl.textContent = target.dataset.title;
+        _tooltipEl.style.display = 'block';
+    }
+}, true);
+
+document.addEventListener('mousemove', e => {
+    if (_tooltipTarget) {
+        const tip = _tooltipTarget.dataset.title;
+        if (tip && _tooltipEl.textContent !== tip) _tooltipEl.textContent = tip;
+        _positionTooltip(e.clientX, e.clientY);
+    }
+});
+
+document.addEventListener('mouseout', e => {
+    const btn = e.target.closest('button[data-title]');
+    if (btn && !btn.hasAttribute('title')) { btn.setAttribute('title', btn.dataset.title); delete btn.dataset.title; }
+    if (_tooltipTarget && !_tooltipTarget.contains(e.relatedTarget)) {
+        _tooltipTarget = null;
+        _tooltipEl.style.display = 'none';
+    }
+}, true);
+
+// ── Monaco editor ────────────────────────────────────────────────────────────
+let monacoReady = null;
+if (window.require) {
+    window.require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs' } });
+    monacoReady = new Promise(resolve => {
+        window.require(['vs/editor/editor.main'], () => {
+            if (monaco.languages.css) monaco.languages.css.cssDefaults.setOptions({ validate: false });
+
+            monaco.languages.register({ id: 'graalscript' });
+            monaco.languages.setMonarchTokensProvider('graalscript', {
+                keywords: ['class','extends','implements','import','instanceof','interface','native','package','volatile','throws',
+                           'break','case','continue','default','do','else','elseif','for','function','if','in','return','switch','while','with','xor',
+                           'public','const','enum'],
+                memory: ['new','datablock'],
+                tokenizer: {
+                    root: [
+                        [/\/\/.*$/, 'comment'],
+                        [/\/\*/, 'comment', '@blockcomment'],
+                        [/"/, 'string', '@string_dq'],
+                        [/'/, 'string', '@string_sq'],
+                        [/0[xX][0-9a-fA-F]+[Ll]?\b/, 'number'],
+                        [/[0-9]*\.[0-9]+([eE][+-]?[0-9]+)?[fFdD]?\b/, 'number.float'],
+                        [/[0-9]+[eE][+-]?[0-9]+[fFdD]?\b/, 'number.float'],
+                        [/[0-9]+[fFdD]\b/, 'number.float'],
+                        [/[0-9]+[Ll]?\b/, 'number'],
+                        [/\b(?:true|false|nil|null|pi)\b/i, 'keyword.builtin'],
+                        [/\b(?:this|thiso|temp|server|serverr|client|clientr|player)\b/i, 'keyword.extras'],
+                        [/[a-zA-Z_]\w*(?=\s*\()/, { cases: { '@keywords': 'keyword', '@memory': 'keyword.memory', '@default': 'function.call' } }],
+                        [/[a-zA-Z_]\w*/, { cases: { '@keywords': 'keyword', '@memory': 'keyword.memory', 'name': 'variable.property', '@default': 'identifier' } }],
+                        [/[-~^@/%|=+*!?&<>]/, 'operator'],
+                        [/[\[\]]/, 'operator'],
+                        [/[{}();:,.]/, 'delimiter'],
+                    ],
+                    blockcomment: [
+                        [/[^/*]+/, 'comment'],
+                        [/\*\//, 'comment', '@pop'],
+                        [/[/*]/, 'comment'],
+                    ],
+                    string_dq: [
+                        [/[^"]+/, 'string'],
+                        [/"/, 'string', '@pop'],
+                    ],
+                    string_sq: [
+                        [/[^'\n]+/, 'string'],
+                        [/\n/, '', '@pop'],
+                        [/'/, 'string', '@pop'],
+                    ],
+                }
+            });
+
+            let _gscriptDefs = null;
+            const _loadGScriptDefs = () => {
+                if (_gscriptDefs) return Promise.resolve(_gscriptDefs);
+                return fetch('https://api.gscript.dev').then(r => r.json()).then(data => { _gscriptDefs = data; return data; }).catch(() => ({}));
+            };
+            monaco.languages.registerCompletionItemProvider('graalscript', {
+                triggerCharacters: ['$', '_'],
+                provideCompletionItems: (model, position) => _loadGScriptDefs().then(defs => {
+                    const word = model.getWordUntilPosition(position);
+                    const range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: word.startColumn, endColumn: word.endColumn };
+                    const pfx = word.word.toLowerCase();
+                    const suggestions = Object.entries(defs)
+                        .filter(([name]) => pfx === '' || name.toLowerCase().startsWith(pfx))
+                        .map(([name, info]) => {
+                            const isVar = name.startsWith('$');
+                            const params = info.params?.length ? info.params : [];
+                            const snippet = isVar ? name : (params.length ? `${name}(${params.map((p, i) => `\${${i+1}:${p}}`).join(', ')})` : `${name}($0)`);
+                            return {
+                                label: name,
+                                kind: isVar ? monaco.languages.CompletionItemKind.Variable : monaco.languages.CompletionItemKind.Function,
+                                insertText: snippet,
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                detail: [info.scope, info.returns ? `→ ${info.returns}` : ''].filter(Boolean).join(' '),
+                                documentation: info.description || '',
+                                range
+                            };
+                        });
+                    return { suggestions };
+                })
+            });
+            monaco.languages.registerHoverProvider('graalscript', {
+                provideHover: (model, position) => _loadGScriptDefs().then(defs => {
+                    const word = model.getWordAtPosition(position);
+                    if (!word) return null;
+                    const info = defs[word.word] || defs['$' + word.word];
+                    if (!info) return null;
+                    const name = info.name || word.word;
+                    const params = info.params?.length ? `(${info.params.join(', ')})` : '()';
+                    const ret = info.returns ? ` → ${info.returns}` : '';
+                    const scope = info.scope ? `*${info.scope}*` : '';
+                    const contents = [
+                        { value: `**${name}**\`${params}${ret}\` ${scope}`.trim() },
+                        ...(info.description ? [{ value: info.description }] : []),
+                        ...(info.example ? [{ value: `\`\`\`\n${info.example}\n\`\`\`` }] : [])
+                    ];
+                    return { contents };
+                })
+            });
+
+            monaco.editor.defineTheme('graal-default', {
+                base: 'vs-dark', inherit: false,
+                rules: [
+                    { token: '', foreground: 'f8f8f2' },
+                    { token: 'comment', foreground: '75715e', fontStyle: 'italic' },
+                    { token: 'string', foreground: 'e6db74' },
+                    { token: 'number', foreground: 'be84ff' },
+                    { token: 'number.float', foreground: 'be84ff' },
+                    { token: 'keyword', foreground: 'f92672' },
+                    { token: 'keyword.memory', foreground: 'f92672', fontStyle: 'bold' },
+                    { token: 'keyword.builtin', foreground: 'be84ff' },
+                    { token: 'keyword.extras', foreground: 'f57900' },
+                    { token: 'function.call', foreground: 'a6e22b' },
+                    { token: 'variable.property', foreground: '3f8c61' },
+                    { token: 'operator', foreground: 'f92672' },
+                    { token: 'delimiter', foreground: 'ffffff' },
+                    { token: 'identifier', foreground: 'f8f8f2' },
+                ],
+                colors: {
+                    'editor.background': '#1e1f1b',
+                    'editor.foreground': '#f8f8f2',
+                    'editorLineNumber.foreground': '#bebeba',
+                    'editorLineNumber.activeForeground': '#f8f8f2',
+                    'editorCursor.foreground': '#f8f8f0',
+                    'editor.selectionBackground': '#444444',
+                    'editor.lineHighlightBackground': '#2a2b27',
+                    'editor.lineHighlightBorder': '#2a2b27',
+                    'editorIndentGuide.background1': '#3b3a32',
+                    'editorIndentGuide.activeBackground1': '#555753',
+                }
+            });
+
+            monaco.editor.defineTheme('neon-synthwave', {
+                base: 'vs-dark', inherit: true,
+                rules: [
+                    { token: '', foreground: 'e0c0ff' },
+                    { token: 'comment', foreground: '660099', fontStyle: 'italic' },
+                    { token: 'string', foreground: 'ff44ff' },
+                    { token: 'number', foreground: 'ff88ff' },
+                    { token: 'number.float', foreground: 'ff88ff' },
+                    { token: 'keyword', foreground: 'cc00ff', fontStyle: 'bold' },
+                    { token: 'keyword.memory', foreground: 'ff00ff', fontStyle: 'bold' },
+                    { token: 'keyword.builtin', foreground: 'dd88ff' },
+                    { token: 'keyword.extras', foreground: 'ff8844' },
+                    { token: 'function.call', foreground: 'a6e22b' },
+                    { token: 'variable.property', foreground: '44ffaa' },
+                    { token: 'operator', foreground: 'ff2266' },
+                    { token: 'delimiter', foreground: 'aa88ff' },
+                    { token: 'identifier', foreground: 'e0c0ff' },
+                    { token: 'tag', foreground: 'ff00ff' },
+                    { token: 'attribute.name', foreground: 'cc88ff' },
+                    { token: 'attribute.value', foreground: 'ff44ff' },
+                ],
+                colors: {
+                    'editor.background': '#0d0025',
+                    'editor.foreground': '#e0c0ff',
+                    'editorLineNumber.foreground': '#440066',
+                    'editorLineNumber.activeForeground': '#cc00ff',
+                    'editorCursor.foreground': '#ff00ff',
+                    'editor.selectionBackground': '#330066',
+                    'editor.lineHighlightBackground': '#1a003500',
+                    'editor.lineHighlightBorder': '#1a0035',
+                    'editorIndentGuide.background1': '#220044',
+                    'editorIndentGuide.activeBackground1': '#550088',
+                    'editorWidget.background': '#0d0020',
+                    'editorWidget.border': '#660099',
+                    'editorSuggestWidget.background': '#0d0020',
+                    'editorSuggestWidget.border': '#660099',
+                    'editorSuggestWidget.selectedBackground': '#1a0035',
+                    'scrollbarSlider.background': '#66009966',
+                    'scrollbarSlider.hoverBackground': '#ff00ff88',
+                    'scrollbarSlider.activeBackground': '#ff00ffcc',
+                }
+            });
+            resolve(monaco);
+        });
+    });
+} else {
+    monacoReady = Promise.resolve(null);
+}
+function getMonacoTheme() {
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--monaco-theme').trim().replace(/['"]/g, '');
+    return v || 'graal-default';
+}
+function createMonacoEditor(container, value, language) {
+    return monacoReady ? monacoReady.then(mc => {
+        if (!mc) return null;
+        container.style.height = '100%';
+        const ed = mc.editor.create(container, { value, language, theme: getMonacoTheme(), minimap: { enabled: false }, scrollBeyondLastLine: false, fontSize: 12, fontFamily: 'monospace', automaticLayout: true, wordWrap: 'on', renderValidationDecorations: 'off' });
+        return ed;
+    }) : Promise.resolve(null);
+}
+
 window.addEventListener("load", async () => {
     const loading = showLoadingMessage("Loading Gani Editor...");
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -5262,18 +5528,8 @@ window.addEventListener("load", async () => {
         }
     );
     createSliderSync("itemZoom", "itemZoomSlider",
-        () => {
-            const piece = getCurrentPiece();
-            if (!piece) return 1.0;
-            return (piece.xscale === piece.yscale && piece.xscale !== undefined) ? piece.xscale : 1.0;
-        },
-        (val) => {
-            const piece = getCurrentPiece();
-            if (piece) {
-                piece.xscale = val;
-                piece.yscale = val;
-            }
-        },
+        () => { const piece = getCurrentPiece(); return piece?._zoom !== undefined ? piece._zoom : 1.0; },
+        (val) => { const piece = getCurrentPiece(); if (piece) piece._zoom = val; },
         () => { redraw(); saveSession(); },
         () => {
             const piece = getCurrentPiece();
@@ -5437,14 +5693,10 @@ window.addEventListener("load", async () => {
         `Change ${editingSprite.comment ? `"${editingSprite.comment}"` : `Sprite ${editingSprite.index}`} Rotation`
     );
     createSliderSync("zoom", "zoomSlider",
-        () => {
-            if (!editingSprite) return 1.0;
-            return (editingSprite.xscale === editingSprite.yscale && editingSprite.xscale !== undefined) ? editingSprite.xscale : 1.0;
-        },
+        () => editingSprite?._zoom !== undefined ? editingSprite._zoom : 1.0,
         (val) => {
             if (editingSprite) {
-                editingSprite.xscale = val;
-                editingSprite.yscale = val;
+                editingSprite._zoom = val;
                 editingSprite.updateBoundingBox();
             }
         },
@@ -5600,6 +5852,7 @@ window.addEventListener("load", async () => {
         const g = parseInt(hex.substr(3,2), 16);
         const b = parseInt(hex.substr(5,2), 16);
         editingSprite.colorEffect = {r, g, b, a: editingSprite.colorEffect.a || 255};
+        if (!editingSprite.colorEffectEnabled) { editingSprite.colorEffectEnabled = true; const cb = document.getElementById("colorEffectCheckbox"); if (cb) cb.textContent = "✓"; }
         const colorR = document.getElementById("colorR");
         const colorG = document.getElementById("colorG");
         const colorB = document.getElementById("colorB");
@@ -5633,6 +5886,7 @@ window.addEventListener("load", async () => {
         const b = Math.max(0, Math.min(255, parseInt(colorB.value) || 255));
         const a = colorA ? Math.max(0, Math.min(255, parseInt(colorA.value) || 255)) : (editingSprite.colorEffect.a || 255);
         editingSprite.colorEffect = {r, g, b, a};
+        if (!editingSprite.colorEffectEnabled) { editingSprite.colorEffectEnabled = true; const cb = document.getElementById("colorEffectCheckbox"); if (cb) cb.textContent = "✓"; }
         if (colorSwatch) {
             const hex = `#${[r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')}`;
             colorSwatch.value = hex;
@@ -5704,26 +5958,34 @@ window.addEventListener("load", async () => {
         });
     };
     document.getElementById("btnCopyFrame").onclick = () => {
-        const frame = currentAnimation.getFrame(currentFrame);
-        if (frame) clipboardFrame = frame.duplicate();
+        if (!currentAnimation) return;
+        const indices = selectedFrames.size > 1 ? [...selectedFrames].sort((a, b) => a - b) : [currentFrame];
+        const frames = indices.map(i => currentAnimation.getFrame(i)).filter(Boolean);
+        if (frames.length) clipboardFrames = frames.map(f => f.duplicate());
     };
     document.getElementById("btnPasteBefore").onclick = () => {
-        if (clipboardFrame) {
-            currentAnimation.frames.splice(currentFrame, 0, clipboardFrame.duplicate());
-            redraw();
-            updateFrameInfo();
-            saveSession();
-        }
+        if (!clipboardFrames || !currentAnimation) return;
+        const oldState = serializeAnimationState();
+        clipboardFrames.forEach((f, i) => currentAnimation.frames.splice(currentFrame + i, 0, f.duplicate()));
+        const newState = serializeAnimationState();
+        addUndoCommand({ description: `Paste ${clipboardFrames.length} Frame${clipboardFrames.length > 1 ? 's' : ''} Before`, oldState, newState, undo: () => restoreAnimationState(oldState), redo: () => restoreAnimationState(newState) });
+        drawTimeline();
+        redraw();
+        updateFrameInfo();
+        saveSession();
     };
     document.getElementById("btnPasteAfter").onclick = () => {
-        if (clipboardFrame) {
-            currentAnimation.frames.splice(currentFrame + 1, 0, clipboardFrame.duplicate());
-            currentFrame++;
-            saveCurrentFrame();
-            redraw();
-            updateFrameInfo();
-            saveSession();
-        }
+        if (!clipboardFrames || !currentAnimation) return;
+        const oldState = serializeAnimationState();
+        clipboardFrames.forEach((f, i) => currentAnimation.frames.splice(currentFrame + 1 + i, 0, f.duplicate()));
+        currentFrame += clipboardFrames.length;
+        saveCurrentFrame();
+        const newState = serializeAnimationState();
+        addUndoCommand({ description: `Paste ${clipboardFrames.length} Frame${clipboardFrames.length > 1 ? 's' : ''} After`, oldState, newState, undo: () => restoreAnimationState(oldState), redo: () => restoreAnimationState(newState) });
+        drawTimeline();
+        redraw();
+        updateFrameInfo();
+        saveSession();
     };
     document.getElementById("btnReverseFrame").onclick = () => {
         const frame = currentAnimation.getFrame(currentFrame);
@@ -5782,21 +6044,13 @@ window.addEventListener("load", async () => {
     const btnSplitView = document.getElementById("btnSplitView");
     if (btnSplitView) {
         btnSplitView.classList.toggle("active", splitViewEnabled);
-        const btnMirrored = document.getElementById("btnMirroredActions");
-        if (btnMirrored) btnMirrored.style.display = splitViewEnabled ? "" : "none";
     }
     document.getElementById("btnSplitView").onclick = (e) => {
         if (currentAnimation && currentAnimation.singleDir) return;
         splitViewEnabled = !splitViewEnabled;
         localStorage.setItem("ganiEditorSplitView", splitViewEnabled ? "true" : "false");
         e.target.closest("button").classList.toggle("active", splitViewEnabled);
-        const btnMirrored = document.getElementById("btnMirroredActions");
-        if (btnMirrored) btnMirrored.style.display = splitViewEnabled ? "" : "none";
-        if (!splitViewEnabled) {
-            mirroredActionsEnabled = false;
-            selectedPieceDir = null;
-        }
-        if (btnMirrored) btnMirrored.classList.remove("active");
+        if (!splitViewEnabled) selectedPieceDir = null;
         redraw();
     };
     document.getElementById("btnMirroredActions").onclick = (e) => {
@@ -6419,6 +6673,42 @@ window.addEventListener("load", async () => {
         } else if (matchesKeybind(e, keybinds.redo) || (e.ctrlKey && e.shiftKey && e.key === "z")) {
             e.preventDefault();
             redo();
+        } else if (e.ctrlKey && e.key === "c" && !e.shiftKey && selectedPieces.size > 0 && currentAnimation) {
+            e.preventDefault();
+            clipboardPieces = Array.from(selectedPieces).map(p => p.duplicate());
+        } else if (e.ctrlKey && e.key === "x" && !e.shiftKey && selectedPieces.size > 0 && currentAnimation) {
+            e.preventDefault();
+            const _frame = currentAnimation.getFrame(currentFrame);
+            if (_frame) {
+                const _dir = getDirIndex(currentDir);
+                const _pieces = _frame.pieces[_dir] || [];
+                clipboardPieces = Array.from(selectedPieces).map(p => p.duplicate());
+                const _oldState = serializeAnimationState();
+                const _cut = Array.from(selectedPieces);
+                const _cutNames = _cut.map(p => { if (p.type === "sprite") { const s = currentAnimation.getAniSprite(p.spriteIndex, p.spriteName || ""); return s?.comment ? `"${s.comment}"` : `Sprite ${p.spriteIndex}`; } return "Sound"; }).join(", ");
+                for (const p of _cut) { const i = _pieces.indexOf(p); if (i >= 0) _pieces.splice(i, 1); }
+                selectedPieces.clear();
+                const _newState = serializeAnimationState();
+                addUndoCommand({ description: `Cut ${_cutNames}`, oldState: _oldState, newState: _newState, undo: () => restoreAnimationState(_oldState), redo: () => restoreAnimationState(_newState) });
+                updateItemsCombo(); updateItemSettings(); redraw(); saveSession();
+            }
+        } else if (e.ctrlKey && e.key === "v" && !e.shiftKey && clipboardPieces && currentAnimation) {
+            e.preventDefault();
+            const _frame = currentAnimation.getFrame(currentFrame);
+            if (_frame) {
+                const _dir = getDirIndex(currentDir);
+                if (!_frame.pieces[_dir]) _frame.pieces[_dir] = [];
+                const _pieces = _frame.pieces[_dir];
+                const _oldState = serializeAnimationState();
+                const _pasted = clipboardPieces.map(p => { const d = p.duplicate(); d.xoffset += 8; d.yoffset += 8; return d; });
+                const _pasteNames = clipboardPieces.map(p => { if (p.type === "sprite") { const s = currentAnimation.getAniSprite(p.spriteIndex, p.spriteName || ""); return s?.comment ? `"${s.comment}"` : `Sprite ${p.spriteIndex}`; } return "Sound"; }).join(", ");
+                _pieces.push(..._pasted);
+                selectedPieces.clear();
+                for (const p of _pasted) selectedPieces.add(p);
+                const _newState = serializeAnimationState();
+                addUndoCommand({ description: `Paste ${_pasteNames}`, oldState: _oldState, newState: _newState, undo: () => restoreAnimationState(_oldState), redo: () => restoreAnimationState(_newState) });
+                updateItemsCombo(); updateItemSettings(); redraw(); saveSession();
+            }
         } else if (matchesKeybind(e, keybinds.resetEditor)) {
             e.preventDefault();
             const settingsReset = document.getElementById("settingsReset");
@@ -6812,12 +7102,6 @@ window.addEventListener("load", async () => {
                     btnSplitView.classList.remove("active");
                     btnSplitView.disabled = true;
                 }
-                const btnMirrored = document.getElementById("btnMirroredActions");
-                if (btnMirrored) {
-                    btnMirrored.style.display = "none";
-                    btnMirrored.classList.remove("active");
-                    mirroredActionsEnabled = false;
-                }
             } else {
                 const btnSplitView = document.getElementById("btnSplitView");
                 if (btnSplitView) btnSplitView.disabled = false;
@@ -7005,6 +7289,7 @@ window.addEventListener("load", async () => {
                         currentAnimation.setDefaultImage(key, value);
                     }
                 }
+                const oldState = serializeAnimationState();
                 let existsOptionAll = null;
                 let importedCount = 0;
                 for (const sprite of importAni.sprites.values()) {
@@ -7042,6 +7327,16 @@ window.addEventListener("load", async () => {
                     newSprite.updateBoundingBox();
                     currentAnimation.addSprite(newSprite);
                     importedCount++;
+                }
+                if (importedCount > 0) {
+                    const newState = serializeAnimationState();
+                    addUndoCommand({
+                        description: `Import ${importedCount} Sprite${importedCount > 1 ? 's' : ''}`,
+                        oldState,
+                        newState,
+                        undo: () => restoreAnimationState(oldState),
+                        redo: () => restoreAnimationState(newState)
+                    });
                 }
                 updateSpritesList();
                 updateDefaultsTable();
@@ -7208,6 +7503,7 @@ window.addEventListener("load", async () => {
         };
     }
     const bgColorInput = document.createElement("input");
+    bgColorInput.id = "bgColorInput";
     bgColorInput.type = "color";
     bgColorInput.value = backgroundColor;
     bgColorInput.style.width = "60px";
@@ -7230,6 +7526,7 @@ window.addEventListener("load", async () => {
             if (oldStyle) oldStyle.remove();
             document.body.style.background = "";
             document.body.style.color = "";
+            ["--timeline-frame-bg","--timeline-frame-selected-bg","--timeline-frame-multi-bg","--quadrant-divider"].forEach(v => document.documentElement.style.removeProperty(v));
             const settingsDialog = document.getElementById("settingsDialog");
             const aboutDialog = document.getElementById("infoDialog");
             if (settingsDialog) {
@@ -7319,84 +7616,46 @@ window.addEventListener("load", async () => {
         }
         const schemes = {
             "fusion-light": {
-                bg: "#f5f5f5",
-                panel: "#ffffff",
-                border: "#d0d0d0",
-                text: "#1a1a1a",
-                hover: "#e8e8e8",
-                button: "#ffffff",
-                buttonText: "#1a1a1a",
-                buttonHover: "#f0f0f0",
-                tabActive: "#ffffff",
-                inputBg: "#ffffff"
+                bg: "#f5f5f5", panel: "#ffffff", border: "#d0d0d0", text: "#1a1a1a", hover: "#e8e8e8",
+                button: "#ffffff", buttonText: "#1a1a1a", buttonHover: "#f0f0f0", tabActive: "#ffffff", inputBg: "#ffffff",
+                frameBg: "#c8a0a0", frameSelected: "#90c090", frameMulti: "#90a8c0", divider: "#d0d0d0"
             },
             "fusion-dark": {
-                bg: "#1e1e1e",
-                panel: "#2d2d2d",
-                border: "#0f0f0f",
-                text: "#e8e8e8",
-                hover: "#3d3d3d"
+                bg: "#1e1e1e", panel: "#2d2d2d", border: "#0f0f0f", text: "#e8e8e8", hover: "#3d3d3d",
+                frameBg: "#5a2020", frameSelected: "#1a4a1a", frameMulti: "#1a2a4a", divider: "#0f0f0f"
             },
             "dark-style": {
-                bg: "#1e1e1e",
-                panel: "#252525",
-                border: "#3c3c3c",
-                text: "#cccccc",
-                hover: "#3e3e3e"
+                bg: "#1e1e1e", panel: "#252525", border: "#3c3c3c", text: "#cccccc", hover: "#3e3e3e",
+                frameBg: "#5a2020", frameSelected: "#1a4a1a", frameMulti: "#1a2a4a", divider: "#3c3c3c"
             },
             "dark-orange": {
-                bg: "#2a1f1a",
-                panel: "#3a2f2a",
-                border: "#1a0f0a",
-                text: "#ffaa55",
-                hover: "#4a3f3a"
+                bg: "#2a1f1a", panel: "#3a2f2a", border: "#1a0f0a", text: "#ffaa55", hover: "#4a3f3a",
+                frameBg: "#4a2a10", frameSelected: "#2a3a10", frameMulti: "#102a3a", divider: "#2a1a0a"
             },
             "aqua": {
-                bg: "#0a1a1f",
-                panel: "#1a2a2f",
-                border: "#0a0a0a",
-                text: "#55ffff",
-                hover: "#2a3a3f"
+                bg: "#0a1a1f", panel: "#1a2a2f", border: "#0a0a0a", text: "#55ffff", hover: "#2a3a3f",
+                frameBg: "#1a3535", frameSelected: "#0a2a1a", frameMulti: "#0a1a38", divider: "#0a1a20"
             },
             "elegant-dark": {
-                bg: "#1a1a1a",
-                panel: "#2d2d2d",
-                border: "#404040",
-                text: "#e8e8e8",
-                hover: "#3d3d3d"
+                bg: "#1a1a1a", panel: "#2d2d2d", border: "#404040", text: "#e8e8e8", hover: "#3d3d3d",
+                frameBg: "#5a2020", frameSelected: "#1a4a1a", frameMulti: "#1a2a4a", divider: "#404040"
             },
             "material-dark": {
-                bg: "#121212",
-                panel: "#1e1e1e",
-                border: "#333333",
-                text: "#ffffff",
-                hover: "#2e2e2e"
+                bg: "#121212", panel: "#1e1e1e", border: "#333333", text: "#ffffff", hover: "#2e2e2e",
+                frameBg: "#3a1010", frameSelected: "#103a10", frameMulti: "#10203a", divider: "#333333"
             },
             "light-style": {
-                bg: "#ffffff",
-                panel: "#ffffff",
-                border: "#e0e0e0",
-                text: "#000000",
-                hover: "#f5f5f5",
-                button: "#ffffff",
-                buttonText: "#000000",
-                buttonHover: "#f0f0f0",
-                tabActive: "#ffffff",
-                inputBg: "#ffffff"
+                bg: "#ffffff", panel: "#ffffff", border: "#e0e0e0", text: "#000000", hover: "#f5f5f5",
+                button: "#ffffff", buttonText: "#000000", buttonHover: "#f0f0f0", tabActive: "#ffffff", inputBg: "#ffffff",
+                frameBg: "#e0b0b0", frameSelected: "#b0d0b0", frameMulti: "#b0c0d8", divider: "#e0e0e0"
             },
             "ayu-mirage": {
-                bg: "#1f2430",
-                panel: "#232834",
-                border: "#191e2a",
-                text: "#cbccc6",
-                hover: "#2a2f3a"
+                bg: "#1f2430", panel: "#232834", border: "#191e2a", text: "#cbccc6", hover: "#2a2f3a",
+                frameBg: "#3a1f1f", frameSelected: "#1f3a1f", frameMulti: "#1f2a3a", divider: "#191e2a"
             },
             "dracula": {
-                bg: "#282a36",
-                panel: "#343746",
-                border: "#21222c",
-                text: "#f8f8f2",
-                hover: "#44475a"
+                bg: "#282a36", panel: "#343746", border: "#21222c", text: "#f8f8f2", hover: "#44475a",
+                frameBg: "#44282a", frameSelected: "#283844", frameMulti: "#2a2844", divider: "#21222c"
             }
         };
         const colors = schemes[scheme];
@@ -7413,6 +7672,7 @@ window.addEventListener("load", async () => {
         const tabActive = colors.tabActive || colors.panel;
         const inputBg = colors.inputBg || colors.bg;
         style.textContent = `
+            :root { --timeline-frame-bg: ${colors.frameBg}; --timeline-frame-selected-bg: ${colors.frameSelected}; --timeline-frame-multi-bg: ${colors.frameMulti}; --quadrant-divider: ${colors.divider}; }
             .toolbar, .sprite-toolbar, .playback-controls { background: ${colors.panel} !important; }
             .left-panel, .right-panel, .sprite-edit-panel, .timeline-container, .settings-group { background: ${colors.panel} !important; }
             .sprite-item, .sprite-preview, .timeline-view { background: ${colors.panel} !important; }
@@ -7606,6 +7866,9 @@ window.addEventListener("load", async () => {
             item.onclick = (e) => {
                 e.stopPropagation();
                 const scheme = item.getAttribute("data-scheme");
+                const customTag = document.getElementById("customUserCSS");
+                if (customTag) customTag.textContent = "";
+                localStorage.removeItem("ganiEditorCustomCSS");
                 applyColorScheme(scheme);
                 const schemes = {
                     "fusion-light": { hover: "#e8e8e8" },
@@ -7645,27 +7908,38 @@ window.addEventListener("load", async () => {
             };
         }
     }
+    function syncCanvasBgFromCSS() {
+        const cssBg = getComputedStyle(document.documentElement).getPropertyValue('--canvas-bg').trim();
+        if (cssBg) {
+            backgroundColor = cssBg;
+            const picker = document.getElementById("bgColorInput");
+            if (picker) picker.value = cssBg;
+            redraw();
+        }
+    }
     (function initCustomCSS() {
         const saved = localStorage.getItem("ganiEditorCustomCSS");
         if (saved) {
             let tag = document.getElementById("customUserCSS");
             if (!tag) { tag = document.createElement("style"); tag.id = "customUserCSS"; document.head.appendChild(tag); }
             tag.textContent = saved;
+            requestAnimationFrame(syncCanvasBgFromCSS);
         }
     })();
     function openCustomCSSDialog() {
         const fontFamily = getFontFamily(localStorage.getItem("editorFont") || "chevyray");
         const current = (document.getElementById("customUserCSS") || {}).textContent || "";
         const overlay = document.createElement("div");
+        overlay.className = "dialog-overlay";
         overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10000;display:flex;justify-content:center;align-items:center;";
         overlay.innerHTML = `
-            <div style="background:#2b2b2b;border:2px solid #1a1a1a;width:560px;max-width:92vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 4px 16px rgba(0,0,0,0.9);">
-                <div style="background:#1e1e1e;border-bottom:2px solid #0a0a0a;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;">
-                    <span style="font-family:${fontFamily};font-size:13px;color:#c0c0c0;user-select:none;">Custom CSS</span>
+            <div class="dialog-content" style="background:#2b2b2b;border:2px solid #1a1a1a;width:660px;max-width:92vw;height:80vh;display:flex;flex-direction:column;box-shadow:0 4px 16px rgba(0,0,0,0.9);">
+                <div class="dialog-titlebar" style="background:#1e1e1e;border-bottom:2px solid #0a0a0a;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+                    <span style="display:flex;align-items:center;gap:8px;"><i class="fas fa-palette" style="flex-shrink:0;display:block;"></i><span style="font-family:${fontFamily};font-size:13px;color:#c0c0c0;user-select:none;line-height:16px;">Custom CSS</span></span>
                     <span style="font-family:${fontFamily};font-size:11px;color:#666;user-select:none;">injected after all themes — overrides anything</span>
                 </div>
-                <textarea id="customCSSTextarea" spellcheck="false" style="flex:1;min-height:320px;background:#1a1a1a;color:#e0e0e0;border:none;border-bottom:1px solid #0a0a0a;padding:12px;font-family:monospace;font-size:12px;line-height:1.5;resize:none;outline:none;">${current.replace(/</g,"&lt;")}</textarea>
-                <div style="padding:10px 14px;display:flex;gap:8px;align-items:center;border-top:1px solid #0a0a0a;">
+                <div id="cssEditorContainer" style="flex:1;min-height:0;position:relative;overflow:hidden;"></div>
+                <div style="padding:10px 14px;display:flex;gap:8px;align-items:center;border-top:1px solid #0a0a0a;flex-shrink:0;">
                     <button id="cssApply" style="background:#1a6b1a;color:#fff;border:1px solid #0a0a0a;border-top:1px solid #2a8a2a;padding:7px 14px;cursor:pointer;font-family:${fontFamily};font-size:12px;">Apply</button>
                     <button id="cssImport" style="background:#1a1a1a;color:#e0e0e0;border:1px solid #0a0a0a;border-top:1px solid #404040;padding:7px 14px;cursor:pointer;font-family:${fontFamily};font-size:12px;">Import</button>
                     <button id="cssExport" style="background:#1a1a1a;color:#e0e0e0;border:1px solid #0a0a0a;border-top:1px solid #404040;padding:7px 14px;cursor:pointer;font-family:${fontFamily};font-size:12px;">Export</button>
@@ -7676,19 +7950,35 @@ window.addEventListener("load", async () => {
                 </div>
             </div>`;
         document.body.appendChild(overlay);
-        const textarea = overlay.querySelector("#customCSSTextarea");
+        const container = overlay.querySelector("#cssEditorContainer");
+        let editorInstance = null;
+        let fallbackTextarea = null;
+        const getValue = () => editorInstance ? editorInstance.getValue() : (fallbackTextarea ? fallbackTextarea.value : "");
+        const setValue = (v) => { if (editorInstance) editorInstance.setValue(v); else if (fallbackTextarea) fallbackTextarea.value = v; };
+        createMonacoEditor(container, current, 'css').then(ed => {
+            if (ed) { editorInstance = ed; }
+            else {
+                fallbackTextarea = document.createElement("textarea");
+                fallbackTextarea.id = "customCSSTextarea";
+                fallbackTextarea.spellcheck = false;
+                fallbackTextarea.value = current;
+                fallbackTextarea.style.cssText = "width:100%;height:100%;background:#1a1a1a;color:#e0e0e0;border:none;padding:12px;font-family:monospace;font-size:12px;line-height:1.5;resize:none;outline:none;box-sizing:border-box;";
+                container.appendChild(fallbackTextarea);
+            }
+        });
         const applyCSS = () => {
-            const css = textarea.value;
+            const css = getValue();
             let tag = document.getElementById("customUserCSS");
             if (!tag) { tag = document.createElement("style"); tag.id = "customUserCSS"; document.head.appendChild(tag); }
             tag.textContent = css;
             localStorage.setItem("ganiEditorCustomCSS", css);
+            requestAnimationFrame(syncCanvasBgFromCSS);
         };
         overlay.querySelector("#cssApply").onclick = applyCSS;
-        overlay.querySelector("#cssClose").onclick = () => document.body.removeChild(overlay);
-        overlay.onclick = (e) => { if (e.target === overlay) document.body.removeChild(overlay); };
+        overlay.querySelector("#cssClose").onclick = () => { if (editorInstance) editorInstance.dispose(); document.body.removeChild(overlay); };
+        overlay.onclick = (e) => { if (e.target === overlay) { if (editorInstance) editorInstance.dispose(); document.body.removeChild(overlay); } };
         overlay.querySelector("#cssClear").onclick = () => {
-            textarea.value = "";
+            setValue("");
             const tag = document.getElementById("customUserCSS");
             if (tag) tag.textContent = "";
             localStorage.removeItem("ganiEditorCustomCSS");
@@ -7700,13 +7990,13 @@ window.addEventListener("load", async () => {
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = (ev) => { textarea.value = ev.target.result; applyCSS(); };
+                reader.onload = (ev) => { setValue(ev.target.result); applyCSS(); };
                 reader.readAsText(file);
             };
             input.click();
         };
         overlay.querySelector("#cssExport").onclick = () => {
-            const blob = new Blob([textarea.value], {type: "text/css"});
+            const blob = new Blob([getValue()], {type: "text/css"});
             const a = document.createElement("a");
             a.href = URL.createObjectURL(blob);
             a.download = "custom-theme.css";
@@ -7879,6 +8169,8 @@ window.addEventListener("load", async () => {
         const settingsSelectionBorderColor = document.getElementById("settingsSelectionBorderColor");
         const settingsSelectionBorderThickness = document.getElementById("settingsSelectionBorderThickness");
         const settingsSelectionBorderThicknessNumber = document.getElementById("settingsSelectionBorderThicknessNumber");
+        const settingsSelectionBorderOpacity = document.getElementById("settingsSelectionBorderOpacity");
+        const settingsSelectionBorderOpacityLabel = document.getElementById("settingsSelectionBorderOpacityLabel");
     if (btnSettings && settingsDialog) {
         const settingsFont = document.getElementById("settingsFont");
         const settingsFontSize = document.getElementById("settingsFontSize");
@@ -7943,6 +8235,7 @@ window.addEventListener("load", async () => {
         const savedLightEffects = localStorage.getItem("editorLightEffects") !== "false";
         const savedSelectionBorderColor = localStorage.getItem("editorSelectionBorderColor") || "#00ff00";
         const savedSelectionBorderThickness = parseInt(localStorage.getItem("editorSelectionBorderThickness")) || 2;
+        const savedSelectionBorderOpacity = parseInt(localStorage.getItem("editorSelectionBorderOpacity") ?? "100");
         function applyFont(font, save = true) {
             const fontFamily = getFontFamily(font);
             document.body.style.fontFamily = fontFamily;
@@ -8074,6 +8367,10 @@ window.addEventListener("load", async () => {
             if (save) localStorage.setItem("editorSelectionBorderThickness", thickness.toString());
             redraw();
         }
+        function applySelectionBorderOpacity(opacity, save = true) {
+            if (save) localStorage.setItem("editorSelectionBorderOpacity", opacity.toString());
+            redraw();
+        }
         applyFont(savedFont);
         applyFontSize(savedFontSize);
         applyFontStyle(savedFontStyle);
@@ -8103,6 +8400,7 @@ window.addEventListener("load", async () => {
             const currentLightEffects = localStorage.getItem("editorLightEffects") !== "false";
             const currentSelectionBorderColor = localStorage.getItem("editorSelectionBorderColor") || "#00ff00";
             const currentSelectionBorderThickness = parseInt(localStorage.getItem("editorSelectionBorderThickness")) || 2;
+            const currentSelectionBorderOpacity = parseInt(localStorage.getItem("editorSelectionBorderOpacity") ?? "100");
             originalSettings = {
                 font: currentFont,
                 fontSize: currentFontSize,
@@ -8114,7 +8412,8 @@ window.addEventListener("load", async () => {
                 gifAnimations: currentGifAnimations,
                 lightEffects: currentLightEffects,
                 selectionBorderColor: currentSelectionBorderColor,
-                selectionBorderThickness: currentSelectionBorderThickness
+                selectionBorderThickness: currentSelectionBorderThickness,
+                selectionBorderOpacity: currentSelectionBorderOpacity
             };
             if (settingsFont) settingsFont.value = currentFont;
             if (settingsFontSize) settingsFontSize.value = currentFontSize;
@@ -8133,6 +8432,7 @@ window.addEventListener("load", async () => {
                 settingsSelectionBorderThickness.value = currentSelectionBorderThickness;
                 if (settingsSelectionBorderThicknessNumber) settingsSelectionBorderThicknessNumber.value = currentSelectionBorderThickness;
             }
+            if (settingsSelectionBorderOpacity) { settingsSelectionBorderOpacity.value = currentSelectionBorderOpacity; if (settingsSelectionBorderOpacityLabel) settingsSelectionBorderOpacityLabel.textContent = currentSelectionBorderOpacity + "%"; }
             settingsDialog.style.display = "flex";
         };
         if (settingsFont) {
@@ -8236,6 +8536,13 @@ window.addEventListener("load", async () => {
                 applySelectionBorderThickness(thickness, false);
             }, 1);
         }
+        if (settingsSelectionBorderOpacity) {
+            settingsSelectionBorderOpacity.oninput = () => {
+                const v = parseInt(settingsSelectionBorderOpacity.value);
+                if (settingsSelectionBorderOpacityLabel) settingsSelectionBorderOpacityLabel.textContent = v + "%";
+                applySelectionBorderOpacity(v, false);
+            };
+        }
         if (settingsOK) {
             settingsOK.onclick = () => {
                 if (settingsFont) applyFont(settingsFont.value, true);
@@ -8249,6 +8556,7 @@ window.addEventListener("load", async () => {
                 if (settingsLightEffects) applyLightEffects(settingsLightEffects.textContent.trim() === "✓", true);
                 if (settingsSelectionBorderColor) applySelectionBorderColor(settingsSelectionBorderColor.value, true);
                 if (settingsSelectionBorderThickness) applySelectionBorderThickness(parseInt(settingsSelectionBorderThickness.value) || 2, true);
+                if (settingsSelectionBorderOpacity) applySelectionBorderOpacity(parseInt(settingsSelectionBorderOpacity.value), true);
                 settingsDialog.style.display = "none";
             };
         }
@@ -8262,11 +8570,13 @@ window.addEventListener("load", async () => {
             applyLightEffects(originalSettings.lightEffects, false);
             applySelectionBorderColor(originalSettings.selectionBorderColor || "#00ff00", false);
             applySelectionBorderThickness(originalSettings.selectionBorderThickness || 2, false);
+            applySelectionBorderOpacity(originalSettings.selectionBorderOpacity ?? 100, false);
             if (settingsSelectionBorderColor) settingsSelectionBorderColor.value = originalSettings.selectionBorderColor || "#00ff00";
             if (settingsSelectionBorderThickness) {
                 settingsSelectionBorderThickness.value = (originalSettings.selectionBorderThickness || 2).toString();
                 if (settingsSelectionBorderThicknessNumber) settingsSelectionBorderThicknessNumber.value = (originalSettings.selectionBorderThickness || 2).toString();
             }
+            if (settingsSelectionBorderOpacity) { settingsSelectionBorderOpacity.value = (originalSettings.selectionBorderOpacity ?? 100).toString(); if (settingsSelectionBorderOpacityLabel) settingsSelectionBorderOpacityLabel.textContent = (originalSettings.selectionBorderOpacity ?? 100) + "%"; }
             if (settingsFont) {
                 settingsFont.value = originalSettings.font;
                 settingsFont.dispatchEvent(new Event('change', { bubbles: true }));
@@ -8358,14 +8668,17 @@ window.addEventListener("load", async () => {
             settingsDefaults.onclick = () => {
                 if (settingsFont) {
                     settingsFont.value = "chevyray";
+                    settingsFont.dispatchEvent(new Event('change', { bubbles: true }));
                     applyFont("chevyray", false);
                 }
                 if (settingsFontSize) {
                     settingsFontSize.value = "12";
+                    settingsFontSize.dispatchEvent(new Event('change', { bubbles: true }));
                     applyFontSize("12", false);
                 }
                 if (settingsFontStyle) {
                     settingsFontStyle.value = "normal";
+                    settingsFontStyle.dispatchEvent(new Event('change', { bubbles: true }));
                     applyFontStyle("normal", false);
                 }
                 if (settingsUIScale) {
@@ -8404,6 +8717,7 @@ window.addEventListener("load", async () => {
                     if (settingsSelectionBorderThicknessNumber) settingsSelectionBorderThicknessNumber.value = "2";
                     applySelectionBorderThickness(2, false);
                 }
+                if (settingsSelectionBorderOpacity) { settingsSelectionBorderOpacity.value = "100"; if (settingsSelectionBorderOpacityLabel) settingsSelectionBorderOpacityLabel.textContent = "100%"; applySelectionBorderOpacity(100, false); }
             };
         }
         const resetEditorToDefaults = () => {
@@ -8481,6 +8795,9 @@ window.addEventListener("load", async () => {
             applyGifAnimations(true, true);
             applyLightEffects(true, true);
             applyColorScheme("default");
+            const _customTag = document.getElementById("customUserCSS");
+            if (_customTag) _customTag.textContent = "";
+            localStorage.removeItem("ganiEditorCustomCSS");
             applySelectionBorderColor("#00ff00", true);
             applySelectionBorderThickness(2, true);
             if (settingsFont) {
@@ -8726,12 +9043,20 @@ window.addEventListener("load", async () => {
         applyLabelShadows();
     });
     labelObserver.observe(document.body, { childList: true, subtree: true });
-    document.getElementById("btnSwapKeys").onclick = (e) => {
+    const btnSwapKeys = document.getElementById("btnSwapKeys");
+    const updateSwapTooltip = () => {
+        const tip = keysSwapped ? "Arrows=Direction, WASD=Move — click to restore" : "WASD=Direction, Arrows=Move — click to swap";
+        if (btnSwapKeys.hasAttribute("data-title")) btnSwapKeys.dataset.title = tip;
+        else btnSwapKeys.title = tip;
+    };
+    updateSwapTooltip();
+    btnSwapKeys.onclick = () => {
         keysSwapped = !keysSwapped;
-        e.target.classList.toggle("active", keysSwapped);
+        btnSwapKeys.classList.toggle("active", keysSwapped);
+        updateSwapTooltip();
         saveSession();
     };
-    const APP_VERSION = "2.1.0";
+    const APP_VERSION = "2.1.1";
     const _infoDialog = document.getElementById("infoDialog");
     const _infoClose = document.getElementById("infoClose");
     const _infoContent = document.getElementById("infoContent");
@@ -8775,6 +9100,9 @@ ${editableActions.map(a => kbRow(a.label, a.key)).join("")}
 <div style="margin-top:14px;margin-bottom:8px;"><strong>Fixed Shortcuts</strong></div>
 <div style="margin-left:16px;margin-bottom:4px;color:#c0c0c0;">Arrows — Move Selected Piece</div>
 <div style="margin-left:16px;margin-bottom:4px;color:#c0c0c0;">Backspace — Delete Piece</div>
+<div style="margin-left:16px;margin-bottom:4px;color:#c0c0c0;">Ctrl+C — Copy Selected Pieces</div>
+<div style="margin-left:16px;margin-bottom:4px;color:#c0c0c0;">Ctrl+X — Cut Selected Pieces</div>
+<div style="margin-left:16px;margin-bottom:4px;color:#c0c0c0;">Ctrl+V — Paste Pieces</div>
 <div style="margin-left:16px;margin-bottom:4px;color:#c0c0c0;">Shift+Click Canvas — Add to selection</div>
 <div style="margin-top:14px;margin-bottom:8px;"><strong>Timeline</strong></div>
 <div style="margin-left:16px;margin-bottom:4px;color:#c0c0c0;">Ctrl+Scroll — Zoom Timeline</div>
@@ -8878,45 +9206,41 @@ ${editableActions.map(a => kbRow(a.label, a.key)).join("")}
         dialog.style.display = "flex";
         dialog.style.justifyContent = "center";
         dialog.style.alignItems = "center";
-        dialog.style.position = "fixed";
-        dialog.style.top = "0";
-        dialog.style.left = "0";
-        dialog.style.width = "100%";
-        dialog.style.height = "100%";
-        dialog.style.background = "rgba(0,0,0,0)";
-        dialog.style.zIndex = "10000";
+        dialog.className = "dialog-overlay";
+        dialog.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10000;display:flex;justify-content:center;align-items:center;";
         const content = document.createElement("div");
-        content.style.background = "#444";
-        content.style.padding = "20px";
-        content.style.borderRadius = "5px";
-        content.style.width = "600px";
-        content.style.maxHeight = "80vh";
-        content.style.display = "flex";
-        content.style.flexDirection = "column";
+        content.className = "dialog-content";
+        content.style.cssText = "width:660px;max-width:92vw;height:80vh;display:flex;flex-direction:column;background:var(--dialog-bg,#2b2b2b);border:2px solid var(--dialog-border,#1a1a1a);box-shadow:0 4px 16px rgba(0,0,0,0.9);";
         content.innerHTML = `
-            <h3 style="margin-top:0;margin-bottom:10px;font-family:${fontFamily};">Edit Script</h3>
-            <textarea id="scriptTextArea" style="flex:1;min-height:300px;background:#555;color:#eee;border:1px solid #777;padding:8px;font-family:${fontFamily};font-size:12px;resize:none;">${currentAnimation.script || ""}</textarea>
-            <div style="text-align:right;margin-top:10px;">
-                <button id="scriptCancel" style="background:#666;color:#eee;border:1px solid #777;padding:4px 12px;cursor:pointer;margin-right:5px;font-family:${fontFamily};">Cancel</button>
-                <button id="scriptSave" style="background:#666;color:#eee;border:1px solid #777;padding:4px 12px;cursor:pointer;font-family:${fontFamily};">Save</button>
+            <div class="dialog-titlebar" style="flex-shrink:0;padding:10px 14px;display:flex;align-items:center;gap:8px;">
+                <i class="fas fa-code" style="flex-shrink:0;display:block;"></i>
+                <span style="font-family:${fontFamily};font-size:13px;line-height:16px;">Edit Script</span>
+            </div>
+            <div id="scriptEditorContainer" style="flex:1;min-height:0;position:relative;overflow:hidden;"></div>
+            <div style="text-align:right;padding:10px 14px;flex-shrink:0;border-top:1px solid #0a0a0a;">
+                <button id="scriptCancel" style="margin-right:8px;padding:6px 14px;cursor:pointer;font-family:${fontFamily};">Cancel</button>
+                <button id="scriptSave" style="padding:6px 14px;cursor:pointer;font-family:${fontFamily};">Save</button>
             </div>
         `;
         dialog.appendChild(content);
         document.body.appendChild(dialog);
-        const textArea = document.getElementById("scriptTextArea");
-        textArea.focus();
-        document.getElementById("scriptCancel").onclick = () => {
-            document.body.removeChild(dialog);
-        };
-        document.getElementById("scriptSave").onclick = () => {
-            currentAnimation.script = textArea.value;
-            document.body.removeChild(dialog);
-        };
-        dialog.onclick = (e) => {
-            if (e.target === dialog) {
-                document.body.removeChild(dialog);
+        const scriptContainer = content.querySelector("#scriptEditorContainer");
+        let scriptEditorInstance = null;
+        let scriptFallback = null;
+        const getScriptValue = () => scriptEditorInstance ? scriptEditorInstance.getValue() : (scriptFallback ? scriptFallback.value : "");
+        createMonacoEditor(scriptContainer, currentAnimation.script || "", 'graalscript').then(ed => {
+            if (ed) { scriptEditorInstance = ed; ed.focus(); }
+            else {
+                scriptFallback = document.createElement("textarea");
+                scriptFallback.value = currentAnimation.script || "";
+                scriptFallback.style.cssText = "width:100%;height:100%;background:#444;color:#eee;border:none;padding:8px;font-family:monospace;font-size:12px;resize:none;outline:none;box-sizing:border-box;";
+                scriptContainer.appendChild(scriptFallback);
+                scriptFallback.focus();
             }
-        };
+        });
+        content.querySelector("#scriptCancel").onclick = () => { if (scriptEditorInstance) scriptEditorInstance.dispose(); document.body.removeChild(dialog); };
+        content.querySelector("#scriptSave").onclick = () => { currentAnimation.script = getScriptValue(); if (scriptEditorInstance) scriptEditorInstance.dispose(); document.body.removeChild(dialog); };
+        dialog.onclick = (e) => { if (e.target === dialog) { if (scriptEditorInstance) scriptEditorInstance.dispose(); document.body.removeChild(dialog); } };
     };
     document.getElementById("btnAttachmentBack").onclick = () => {
         if (!editingSprite) return;
@@ -9597,7 +9921,7 @@ ${editableActions.map(a => kbRow(a.label, a.key)).join("")}
                                 selectedPieces.add(piece);
                             }
                         } else {
-                            if (mirroredActionsEnabled && splitViewEnabled && !currentAnimation.singleDir) {
+                            if (mirroredActionsEnabled) {
                                 if (!selectedPieces.has(piece)) {
                                 selectedPieces.add(piece);
                             }
@@ -10386,6 +10710,14 @@ function playAnimation() {
     }
 }
 
+function positionContextMenu(menu, cx, cy) {
+    document.body.appendChild(menu);
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    menu.style.left = Math.min(cx, vw - mw - 4) + "px";
+    menu.style.top = Math.min(cy, vh - mh - 4) + "px";
+}
+
 function showSpriteContextMenu(e, sprite) {
     e.preventDefault();
     e.stopPropagation();
@@ -10397,58 +10729,33 @@ function showSpriteContextMenu(e, sprite) {
     const menu = document.createElement("div");
     menu.className = "context-menu";
     menu.style.position = "fixed";
-    menu.style.left = e.pageX + "px";
-    menu.style.top = e.pageY + "px";
-    menu.style.background = "#444";
-    menu.style.border = "1px solid #555";
-    menu.style.padding = "4px";
     menu.style.zIndex = "10000";
     menu.style.minWidth = "150px";
     activeContextMenu = menu;
+    selectSprite(sprite);
+    const deleteCount = selectedSpritesForDeletion.size > 1 ? selectedSpritesForDeletion.size : 0;
     const items = [
-        {text: "Edit Sprite", action: () => {
-            editSprite(sprite);
-            if (activeContextMenu) {
-                document.body.removeChild(activeContextMenu);
-                activeContextMenu = null;
-            }
-        }},
-        {text: "Copy Sprite", action: () => {
-            editingSprite = sprite;
-            document.getElementById("btnCopySprite").click();
-        }},
+        {text: "Edit Sprite", action: () => editSprite(sprite)},
+        {text: "Copy Sprite", action: () => document.getElementById("btnCopySprite").click()},
         {text: "Duplicate Sprite", action: () => {
-            if (!editingSprite) return;
-            const newSprite = editingSprite.duplicate(currentAnimation.nextSpriteIndex++);
+            const newSprite = sprite.duplicate(currentAnimation.nextSpriteIndex++);
             currentAnimation.addSprite(newSprite);
             selectSprite(newSprite);
             updateSpritesList();
             redraw();
         }},
-        {text: selectedSpritesForDeletion.size > 1 ? `Delete ${selectedSpritesForDeletion.size} Sprites` : "Delete Sprite", action: () => {
-            if (selectedSpritesForDeletion.size > 0) {
+        {text: deleteCount > 1 ? `Delete ${deleteCount} Sprites` : "Delete Sprite", action: () => {
+            if (deleteCount > 1) {
                 const oldState = serializeAnimationState();
-                for (const spriteToDelete of selectedSpritesForDeletion) {
-                    currentAnimation.sprites.delete(spriteToDelete.index);
-                }
-                if (editingSprite && selectedSpritesForDeletion.has(editingSprite)) {
-                    editingSprite = null;
-                }
+                const toDelete = [...selectedSpritesForDeletion];
+                const count = toDelete.length;
+                for (const s of toDelete) currentAnimation.sprites.delete(s.index);
+                if (editingSprite && toDelete.includes(editingSprite)) editingSprite = null;
                 selectedSpritesForDeletion.clear();
                 const newState = serializeAnimationState();
-                addUndoCommand({
-                    description: `Delete ${selectedSpritesForDeletion.size} Sprite${selectedSpritesForDeletion.size > 1 ? 's' : ''}`,
-                    oldState: oldState,
-                    newState: newState,
-                    undo: () => restoreAnimationState(oldState),
-                    redo: () => restoreAnimationState(newState)
-                });
-                updateSpritesList();
-                updateSpriteEditor();
-                redraw();
-                saveSession();
+                addUndoCommand({ description: `Delete ${count} Sprites`, oldState, newState, undo: () => restoreAnimationState(oldState), redo: () => restoreAnimationState(newState) });
+                updateSpritesList(); updateSpriteEditor(); redraw(); saveSession();
             } else {
-                editingSprite = sprite;
                 document.getElementById("btnDeleteSprite").click();
             }
         }}
@@ -10469,13 +10776,10 @@ function showSpriteContextMenu(e, sprite) {
         };
         menu.appendChild(div);
     }
-    document.body.appendChild(menu);
-    const closeMenu = (e) => {
-        if (!menu.contains(e.target)) {
-            if (activeContextMenu === menu) {
-                document.body.removeChild(menu);
-                activeContextMenu = null;
-            }
+    positionContextMenu(menu, e.clientX, e.clientY);
+    const closeMenu = (ev) => {
+        if (!menu.contains(ev.target)) {
+            if (activeContextMenu === menu) { document.body.removeChild(menu); activeContextMenu = null; }
             document.removeEventListener("click", closeMenu);
         }
     };
@@ -10493,8 +10797,6 @@ function showTimelineContextMenu(e) {
     const menu = document.createElement("div");
     menu.className = "context-menu";
     menu.style.position = "fixed";
-    menu.style.left = e.pageX + "px";
-    menu.style.top = e.pageY + "px";
     menu.style.background = "#444";
     menu.style.border = "1px solid #555";
     menu.style.padding = "4px";
@@ -10519,7 +10821,7 @@ function showTimelineContextMenu(e) {
         };
         menu.appendChild(div);
     });
-    document.body.appendChild(menu);
+    positionContextMenu(menu, e.clientX, e.clientY);
     document.addEventListener("click", () => {
         if (activeContextMenu) {
             document.body.removeChild(activeContextMenu);
@@ -10539,8 +10841,6 @@ function showCanvasContextMenu(e) {
     const menu = document.createElement("div");
     menu.className = "context-menu";
     menu.style.position = "fixed";
-    menu.style.left = e.pageX + "px";
-    menu.style.top = e.pageY + "px";
     menu.style.background = "#444";
     menu.style.border = "1px solid #555";
     menu.style.padding = "4px";
@@ -10549,6 +10849,23 @@ function showCanvasContextMenu(e) {
     activeContextMenu = menu;
     const items = [];
     if (selectedPieces.size > 0) {
+        items.push({text: `Copy Piece${selectedPieces.size > 1 ? 's' : ''}`, action: () => { clipboardPieces = Array.from(selectedPieces).map(p => p.duplicate()); }});
+        items.push({text: `Cut Piece${selectedPieces.size > 1 ? 's' : ''}`, action: () => {
+            const frame = currentAnimation.getFrame(currentFrame);
+            if (frame) {
+                const actualDir = getDirIndex(currentDir);
+                const pieces = frame.pieces[actualDir] || [];
+                clipboardPieces = Array.from(selectedPieces).map(p => p.duplicate());
+                const oldState = serializeAnimationState();
+                const cutPieces = Array.from(selectedPieces);
+                const cutNames = cutPieces.map(p => { if (p.type === "sprite") { const s = currentAnimation.getAniSprite(p.spriteIndex, p.spriteName || ""); return s?.comment ? `"${s.comment}"` : `Sprite ${p.spriteIndex}`; } return "Sound"; }).join(", ");
+                for (const p of cutPieces) { const i = pieces.indexOf(p); if (i >= 0) pieces.splice(i, 1); }
+                selectedPieces.clear();
+                const newState = serializeAnimationState();
+                addUndoCommand({ description: `Cut ${cutNames}`, oldState, newState, undo: () => restoreAnimationState(oldState), redo: () => restoreAnimationState(newState) });
+                updateItemsCombo(); updateItemSettings(); redraw(); saveSession();
+            }
+        }});
         items.push({text: `Delete Piece${selectedPieces.size > 1 ? 's' : ''}`, action: () => {
             const frame = currentAnimation.getFrame(currentFrame);
             if (frame) {
@@ -10590,6 +10907,23 @@ function showCanvasContextMenu(e) {
     }
     items.push(
         {text: "Add Sprite", action: () => document.getElementById("btnAddSprite").click()},
+        ...(clipboardPieces ? [{text: "Paste Pieces", action: () => {
+            const frame = currentAnimation.getFrame(currentFrame);
+            if (frame) {
+                const actualDir = getDirIndex(currentDir);
+                if (!frame.pieces[actualDir]) frame.pieces[actualDir] = [];
+                const pieces = frame.pieces[actualDir];
+                const oldState = serializeAnimationState();
+                const pasted = clipboardPieces.map(p => { const d = p.duplicate(); d.xoffset += 8; d.yoffset += 8; return d; });
+                const pasteNames = clipboardPieces.map(p => { if (p.type === "sprite") { const s = currentAnimation.getAniSprite(p.spriteIndex, p.spriteName || ""); return s?.comment ? `"${s.comment}"` : `Sprite ${p.spriteIndex}`; } return "Sound"; }).join(", ");
+                pieces.push(...pasted);
+                selectedPieces.clear();
+                for (const p of pasted) selectedPieces.add(p);
+                const newState = serializeAnimationState();
+                addUndoCommand({ description: `Paste ${pasteNames}`, oldState, newState, undo: () => restoreAnimationState(oldState), redo: () => restoreAnimationState(newState) });
+                updateItemsCombo(); updateItemSettings(); redraw(); saveSession();
+            }
+        }}] : []),
         {text: "Paste Sprite", action: () => document.getElementById("btnPasteSprite").click()},
         {text: "Center View", action: () => {
             panX = panY = 0;
@@ -10612,7 +10946,7 @@ function showCanvasContextMenu(e) {
         };
         menu.appendChild(div);
     }
-    document.body.appendChild(menu);
+    positionContextMenu(menu, e.clientX, e.clientY);
     const closeMenu = (e) => {
         if (!menu.contains(e.target)) {
             if (activeContextMenu === menu) {
@@ -10636,8 +10970,6 @@ function showSpritesListContextMenu(e) {
     const menu = document.createElement("div");
     menu.className = "context-menu";
     menu.style.position = "fixed";
-    menu.style.left = e.pageX + "px";
-    menu.style.top = e.pageY + "px";
     menu.style.background = "#444";
     menu.style.border = "1px solid #555";
     menu.style.padding = "4px";
@@ -10688,7 +11020,7 @@ function showSpritesListContextMenu(e) {
         };
         menu.appendChild(div);
     }
-    document.body.appendChild(menu);
+    positionContextMenu(menu, e.clientX, e.clientY);
     const closeMenu = (e) => {
         if (!menu.contains(e.target)) {
             if (activeContextMenu === menu) {
@@ -10747,7 +11079,7 @@ function showConfirmDialog(message, callback, showClearStorage = false) {
     dialog.style.zIndex = "10001";
     const content = document.createElement("div");
     content.style.background = colors.panel;
-    content.style.padding = "20px";
+    content.style.padding = "0 20px 20px";
     content.style.borderRadius = "0";
     content.style.border = "2px solid " + colors.border;
     content.style.width = "400px";
@@ -10859,6 +11191,11 @@ function showConfirmDialog(message, callback, showClearStorage = false) {
     };
     buttonContainer.appendChild(yesButton);
     buttonContainer.appendChild(noButton);
+    const confirmTitlebar = document.createElement("div");
+    confirmTitlebar.className = "dialog-titlebar";
+    confirmTitlebar.style.cssText = `margin:0 -20px 16px;padding:8px 14px;display:flex;align-items:center;gap:8px;`;
+    confirmTitlebar.innerHTML = `<i class="fas fa-exclamation-circle" style="flex-shrink:0;"></i><span style="font-family:${fontFamily};font-size:13px;color:${colors.text};user-select:none;">Confirm</span>`;
+    content.appendChild(confirmTitlebar);
     content.appendChild(messageEl);
     if (showClearStorage && clearStorageCheckbox) {
         content.appendChild(checkboxContainer);
@@ -12068,11 +12405,12 @@ function showAlertDialog(message, callback) {
     const content = document.createElement("div");
     content.style.background = "#2b2b2b";
     content.style.border = "2px solid #555";
-    content.style.padding = "20px";
+    content.style.padding = "0 20px 20px";
     content.style.borderRadius = "4px";
     content.style.width = "400px";
     content.style.maxWidth = "90vw";
     content.innerHTML = `
+        <div class="dialog-titlebar" style="margin:0 -20px 16px;padding:8px 14px;display:flex;align-items:center;gap:8px;"><i class="fas fa-info-circle" style="flex-shrink:0;"></i><span style="font-size:13px;color:#c0c0c0;user-select:none;">Alert</span></div>
         <div style="margin-bottom: 20px; color: #e0e0e0; font-size: 14px; white-space: pre-wrap;">${message}</div>
         <div style="display: flex; gap: 10px; justify-content: flex-end;">
             <button id="alertOk" style="background: #4472C4; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;">OK</button>
