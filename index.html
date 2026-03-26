@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gani Editor</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/loader.js"></script>
     <script src="anieditor.js" defer></script>
     <style>
         :root {
@@ -23,40 +24,43 @@
             image-rendering: -moz-crisp-edges;
             image-rendering: crisp-edges;
         }
-        .fa-file { background-image: url("icons/file.svg"); }
-        .fa-folder-open { background-image: url("icons/folder-open.svg"); }
-        .fa-book { background-image: url("icons/book.svg"); }
-        .fa-save { background-image: url("icons/save.svg"); }
-        .fa-folder { background-image: url("icons/folder.svg"); }
-        .fa-palette { background-image: url("icons/palette.svg"); }
-        .fa-cog { background-image: url("icons/gear.svg"); }
-        .fa-exchange-alt { background-image: url("icons/exchange-alt.svg"); }
-        .fa-times { background-image: url("icons/times.svg"); }
-        .fa-undo { background-image: url("icons/undo.svg"); }
-        .fa-redo { background-image: url("icons/redo.svg"); }
-        .fa-recycle { background-image: url("icons/recycle.svg"); }
-        .fa-info-circle { background-image: url("icons/circle-info.svg"); }
-        .fa-plus { background-image: url("icons/plus.svg"); }
-        .fa-file-import { background-image: url("icons/file-import.svg"); }
-        .fa-copy { background-image: url("icons/copy.svg"); }
-        .fa-paste { background-image: url("icons/paste.svg"); }
-        .fa-trash { background-image: url("icons/trash.svg"); }
-        .fa-arrow-left { background-image: url("icons/arrow-left.svg"); }
-        .fa-arrow-right { background-image: url("icons/arrow-right.svg"); }
-        .fa-layer-group { background-image: url("icons/layer-group.svg"); }
-        .fa-crosshairs { background-image: url("icons/crosshairs.svg"); }
-        .fa-border-all { background-image: url("icons/border-all.svg"); }
-        .fa-magic { background-image: url("icons/magnet.svg"); transform: scaleX(-1); }
-        .fa-pencil { background-image: url("icons/pencil.svg"); }
-        .input-shadow {
-        }
-        .fa-minus { background-image: url("icons/minus.svg"); }
-        .fa-arrow-up { background-image: url("icons/arrow-up.svg"); }
-        .fa-arrow-down { background-image: url("icons/arrow-down.svg"); }
-        .fa-play { background-image: url("icons/play.svg"); }
-        .fa-pause { background-image: url("icons/pause.svg"); }
-        .fa-stop { background-image: url("icons/stop.svg"); }
-        .fa-magic { background-image: url("icons/magnet.svg"); transform: scaleX(-1); }
+        .fa-file { background-image: var(--icon-file, url("icons/file.svg")); }
+        .fa-folder-open { background-image: var(--icon-folder-open, url("icons/folder-open.svg")); }
+        .fa-book { background-image: var(--icon-book, url("icons/book.svg")); }
+        .fa-save { background-image: var(--icon-save, url("icons/save.svg")); }
+        .fa-save-all { background-image: var(--icon-save-all, url("icons/save-all.svg")); }
+        .fa-folder { background-image: var(--icon-folder, url("icons/folder.svg")); }
+        .fa-palette { background-image: var(--icon-palette, url("icons/palette.svg")); }
+        .fa-code { background-image: var(--icon-code, url("icons/code.svg")); }
+        .fa-exclamation-circle { background-image: var(--icon-exclamation-circle, url("icons/exclamation-circle.svg")); }
+        .fa-cog { background-image: var(--icon-cog, url("icons/gear.svg")); }
+        .fa-exchange-alt { background-image: var(--icon-exchange-alt, url("icons/exchange-alt.svg")); }
+        .fa-times { background-image: var(--icon-times, url("icons/times.svg")); }
+        .fa-undo { background-image: var(--icon-undo, url("icons/undo.svg")); }
+        .fa-redo { background-image: var(--icon-redo, url("icons/redo.svg")); }
+        .fa-recycle { background-image: var(--icon-recycle, url("icons/recycle.svg")); }
+        .fa-info-circle { background-image: var(--icon-info-circle, url("icons/circle-info.svg")); }
+        .fa-plus { background-image: var(--icon-plus, url("icons/plus.svg")); }
+        .fa-file-import { background-image: var(--icon-file-import, url("icons/file-import.svg")); }
+        .fa-copy { background-image: var(--icon-copy, url("icons/copy.svg")); }
+        .fa-paste { background-image: var(--icon-paste, url("icons/paste.svg")); }
+        .fa-trash { background-image: var(--icon-trash, url("icons/trash.svg")); }
+        .fa-arrow-left { background-image: var(--icon-arrow-left, url("icons/arrow-left.svg")); }
+        .fa-arrow-right { background-image: var(--icon-arrow-right, url("icons/arrow-right.svg")); }
+        .fa-layer-group { background-image: var(--icon-layer-group, url("icons/layer-group.svg")); }
+        .fa-crosshairs { background-image: var(--icon-crosshairs, url("icons/crosshairs.svg")); }
+        .fa-border-all { background-image: var(--icon-border-all, url("icons/border-all.svg")); }
+        .fa-magic { background-image: var(--icon-magic, url("icons/magnet.svg")); transform: scaleX(-1); }
+        .fa-magnet { background-image: var(--icon-magnet, url("icons/magnet.svg")); }
+        .fa-pencil { background-image: var(--icon-pencil, url("icons/pencil.svg")); }
+        .fa-minus { background-image: var(--icon-minus, url("icons/minus.svg")); }
+        .fa-arrow-up { background-image: var(--icon-arrow-up, url("icons/arrow-up.svg")); }
+        .fa-arrow-down { background-image: var(--icon-arrow-down, url("icons/arrow-down.svg")); }
+        .fa-play { background-image: var(--icon-play, url("icons/play.svg")); }
+        .fa-pause { background-image: var(--icon-pause, url("icons/pause.svg")); }
+        .fa-stop { background-image: var(--icon-stop, url("icons/stop.svg")); }
+        .fas { filter: var(--icon-filter, brightness(0) invert(1)); }
+        .dialog-titlebar i.fas { display: block !important; filter: var(--dialog-icon-filter, brightness(0) invert(1)) !important; opacity: 1 !important; flex-shrink: 0; }
         @font-face {
             font-family: "Silkscreen";
             src: url("fonts/Silkscreen-Regular.ttf") format("truetype");
@@ -166,7 +170,6 @@
         .toolbar button:active { background: #2b2b2b; border-color: #0a0a0a; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); }
         .toolbar button.active { background: #2a6496 !important; border-color: #1a4a70 !important; }
         .toolbar button.active:hover { background: #3a74a6 !important; }
-        .toolbar button[title]:hover::after { top: calc(100% + 6px); bottom: auto; }
         .color-scheme-item:hover {
             background: #404040 !important;
         }
@@ -637,13 +640,10 @@
         .playback-controls {
             display: flex !important;
             gap: 4px;
-            padding: 8px;
-            padding-bottom: 34px;
+            padding: 8px 8px 10px;
             background: #353535;
-            flex: 0 0 32px;
-            height: 32px;
-            min-height: 32px;
-            max-height: 32px;
+            flex-shrink: 0;
+            flex-grow: 0;
             width: 100%;
             position: relative;
             z-index: 100;
@@ -651,8 +651,6 @@
             visibility: visible !important;
             opacity: 1 !important;
             box-sizing: border-box;
-            flex-shrink: 0;
-            flex-grow: 0;
         }
         .playback-controls button {
             background: #2b2b2b;
@@ -678,9 +676,8 @@
         }
         .playback-controls button:hover { background: #404040; border-color: #555; }
         .playback-controls button:active { background: #1a1a1a; border-color: #0a0a0a; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); }
-        button[title] { position: relative; }
-        button[title]:hover { z-index: 9998; }
-        button[title]:hover::after { content: attr(title); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #1a1a1a; color: #e0e0e0; padding: 3px 8px; border-radius: 3px; font-size: 11px; font-family: 'chevyray', monospace; white-space: nowrap; pointer-events: none; border: 1px solid #444; z-index: 9999; }
+        .info-tab-btn { border-radius: 4px 4px 0 0; }
+        #floatingTooltip { display: none; position: fixed; z-index: 2147483647; background: var(--tooltip-bg, #1a1a1a); color: var(--tooltip-color, #e0e0e0); padding: var(--tooltip-padding, 3px 8px); border-radius: var(--tooltip-radius, 3px); font-size: var(--tooltip-font-size, 11px); font-family: var(--tooltip-font, 'chevyray', monospace); white-space: normal; width: max-content; max-width: var(--tooltip-max-width, 300px); text-align: left; pointer-events: none; border: var(--tooltip-border, 1px solid #444); }
         .right-panel {
             display: flex;
             flex-direction: column;
@@ -1488,22 +1485,27 @@
             margin-top: 10px;
             padding: 6px;
         }
+        #settingsSelectionBorderOpacity { box-shadow: var(--slider-box-shadow); }
+        #settingsSelectionBorderOpacity::-webkit-slider-runnable-track { background: transparent; height: 8px; box-shadow: var(--slider-box-shadow); }
+        #settingsSelectionBorderOpacity::-moz-range-track { background: transparent; height: 8px; box-shadow: var(--slider-box-shadow); }
+        #settingsSelectionBorderOpacity::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 24px; background: #2b2d31; border: 3px solid #404248; cursor: pointer; margin-top: -8px; box-shadow: var(--slider-box-shadow); }
+        #settingsSelectionBorderOpacity::-moz-range-thumb { width: 16px; height: 24px; background: #2b2d31; border: 3px solid #404248; cursor: pointer; box-shadow: var(--slider-box-shadow); }
     </style>
 </head>
 <body>
     <div class="main-container">
         <div class="toolbar">
-            <button title="New" id="btnNew"><i class="fas fa-file"></i></button>
-            <button title="Open" id="btnOpen"><i class="fas fa-folder-open"></i></button>
-            <button title="Open Default GANI" id="btnOpenDefault"><i class="fas fa-book"></i></button>
-            <button title="Save" id="btnSave"><i class="fas fa-save"></i></button>
-            <button title="Save As" id="btnSaveAs"><i class="fas fa-save"></i></button>
-            <button title="Save All" id="btnSaveAll"><i class="fas fa-save"></i></button>
+            <button title="New — create a blank .gani animation" id="btnNew"><i class="fas fa-file"></i></button>
+            <button title="Open — open a .gani file" id="btnOpen"><i class="fas fa-folder-open"></i></button>
+            <button title="Open Default GANI — load a built-in starter animation" id="btnOpenDefault"><i class="fas fa-book"></i></button>
+            <button title="Save (Ctrl+S)" id="btnSave"><i class="fas fa-save"></i></button>
+            <button title="Save As — save to a new file" id="btnSaveAs"><i class="fas fa-save"></i></button>
+            <button title="Save All — save every open tab" id="btnSaveAll"><i class="fas fa-save-all"></i></button>
             <div style="width: 1px; background: #1a1a1a; margin: 0 4px;"></div>
-            <button title="Set Working Directory" id="btnWorkingDir"><i class="fas fa-folder"></i></button>
+            <button title="Set Working Directory — loads images from a local folder into the editor cache for use in .gani files. Does not upload anything to a server." id="btnWorkingDir"><i class="fas fa-folder"></i></button>
             <div style="width: 1px; background: #1a1a1a; margin: 0 4px;"></div>
             <div style="position: relative;">
-                <button title="Color Scheme" id="btnColorScheme"><i class="fas fa-palette"></i></button>
+                <button title="Color Scheme — pick a built-in theme or load custom CSS" id="btnColorScheme"><i class="fas fa-palette"></i></button>
                 <div id="colorSchemeDropdown" style="display: none; position: absolute; top: 100%; left: 0; background: #2b2b2b; border: 1px solid #0a0a0a; border-top: 1px solid #404040; border-left: 1px solid #404040; z-index: 1000; min-width: 150px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); margin-top: 2px; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;">
                 <div class="color-scheme-item" data-scheme="default" style="padding: 8px; cursor: pointer; font-family: 'chevyray', monospace; font-size: 12px; color: #e0e0e0; border-bottom: 1px solid #0a0a0a; background: #404040; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;">Default</div>
                 <div class="color-scheme-item" data-scheme="fusion-light" style="padding: 8px; cursor: pointer; font-family: 'chevyray', monospace; font-size: 12px; color: #e0e0e0; border-bottom: 1px solid #0a0a0a; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;">Fusion Light</div>
@@ -1521,21 +1523,21 @@
                 </div>
             </div>
             <div style="width: 1px; background: #1a1a1a; margin: 0 4px;"></div>
-            <button title="Settings" id="btnSettings"><i class="fas fa-cog"></i></button>
-            <button title="Swap WASD/Arrow Keys (WASD=Direction, Arrows=Move)" id="btnSwapKeys"><i class="fas fa-exchange-alt"></i></button>
+            <button title="Settings — configure grid, playback, selection, and editor options" id="btnSettings"><i class="fas fa-cog"></i></button>
+            <button title="WASD=Direction, Arrows=Move — click to swap" id="btnSwapKeys"><i class="fas fa-exchange-alt"></i></button>
             <div style="width: 1px; background: #1a1a1a; margin: 0 4px;"></div>
-            <button title="Close All" id="btnCloseAll"><i class="fas fa-times"></i></button>
+            <button title="Close All — close every open tab" id="btnCloseAll"><i class="fas fa-times"></i></button>
             <div style="width: 1px; background: #1a1a1a; margin: 0 4px;"></div>
-            <button title="Undo" id="btnUndo"><i class="fas fa-undo"></i></button>
-            <button title="Redo" id="btnRedo"><i class="fas fa-redo"></i></button>
+            <button title="Undo (Ctrl+Z)" id="btnUndo"><i class="fas fa-undo"></i></button>
+            <button title="Redo (Ctrl+Y)" id="btnRedo"><i class="fas fa-redo"></i></button>
             <div style="width: 1px; background: #1a1a1a; margin: 0 4px;"></div>
-            <button title="Reset Editor" id="btnReset"><i class="fas fa-recycle"></i></button>
+            <button title="Reset Editor — clears all tabs and returns to a blank state" id="btnReset"><i class="fas fa-recycle"></i></button>
             <div style="width: 1px; background: #1a1a1a; margin: 0 4px;"></div>
             <button title="Zoom Out" id="btnZoomOut"><i class="fas fa-minus"></i></button>
-            <span id="mainCanvasZoomLevel" style="font-size: 12px; min-width: 40px; text-align: right; color: #e0e0e0; user-select: none; padding: 0 2px 0 4px; display: inline-flex; align-items: center; justify-content: flex-end;">1.0x</span>
+            <span id="mainCanvasZoomLevel" style="font-size: 12px; min-width: 40px; text-align: center; color: #e0e0e0; user-select: none; padding: 0 4px; display: inline-flex; align-items: center; justify-content: center;">1.0x</span>
             <button title="Zoom In" id="btnZoomIn"><i class="fas fa-plus"></i></button>
             <div style="width: 1px; background: #1a1a1a; margin: 0 4px;"></div>
-            <button title="About" id="btnAbout"><i class="fas fa-info-circle"></i></button>
+            <button title="About / Keybinds / Changelog (F1)" id="btnAbout"><i class="fas fa-info-circle"></i></button>
         </div>
         <div class="tabs" id="tabsContainer"></div>
         <div class="content-area">
@@ -1543,12 +1545,12 @@
                 <div class="splitter horizontal" style="flex: 1; overflow: visible; min-height: 0;">
                     <div class="left-panel">
                         <div class="sprite-toolbar">
-                            <button title="Add New Sprite" id="btnAddSprite"><i class="fas fa-plus"></i></button>
-                            <button title="Edit Sprite" id="btnEditSprite"><i class="fas fa-pencil"></i></button>
-                            <button title="Import Sprites" id="btnImportSprites"><i class="fas fa-file-import"></i></button>
-                            <button title="Copy Sprite" id="btnCopySprite"><i class="fas fa-copy"></i></button>
-                            <button title="Paste Sprite" id="btnPasteSprite"><i class="fas fa-paste"></i></button>
-                            <button title="Delete Sprite" id="btnDeleteSprite"><i class="fas fa-trash"></i></button>
+                            <button title="Add New Sprite — select a region from an image" id="btnAddSprite"><i class="fas fa-plus"></i></button>
+                            <button title="Edit Sprite — modify the selected sprite's image region" id="btnEditSprite"><i class="fas fa-pencil"></i></button>
+                            <button title="Import Sprites — import sprite definitions from another .gani file" id="btnImportSprites"><i class="fas fa-file-import"></i></button>
+                            <button title="Copy Sprite — copy to clipboard for pasting into another tab" id="btnCopySprite"><i class="fas fa-copy"></i></button>
+                            <button title="Paste Sprite — paste a copied sprite definition" id="btnPasteSprite"><i class="fas fa-paste"></i></button>
+                            <button title="Delete Sprite — remove the selected sprite definition" id="btnDeleteSprite"><i class="fas fa-trash"></i></button>
                         </div>
                         <div class="sprites-list" id="spritesList"></div>
                         <div class="splitter-handle" id="spriteSplitterHandle" style="width: 100%; height: 4px; cursor: row-resize; background: #1a1a1a; flex-shrink: 0; position: relative;">
@@ -1650,8 +1652,8 @@
                                     <input type="number" id="colorA" min="0" max="255" value="255" style="width: 100%; background: #1a1a1a; border: 1px solid #0a0a0a; border-top: 1px solid #404040; border-left: 1px solid #404040; color: #e0e0e0; padding: 4px; font-family: 'chevyray', monospace; font-size: 12px; box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.3);">
                                 </div>
                                 <div class="item-controls">
-                                    <button id="btnAttachmentBack"><i class="fas fa-arrow-left"></i></button>
-                                    <button id="btnAttachmentForward"><i class="fas fa-arrow-right"></i></button>
+                                    <button id="btnAttachmentBack" title="Previous sprite — cycles through attached sprites in the preview"><i class="fas fa-arrow-left"></i></button>
+                                    <button id="btnAttachmentForward" title="Next sprite — cycles through attached sprites in the preview"><i class="fas fa-arrow-right"></i></button>
                                 </div>
                             </div>
                             <div class="sprite-preview">
@@ -1669,7 +1671,7 @@
                                 <button id="btnOnionSkin" title="Onion Skin (show previous/next frame)"><i class="fas fa-layer-group"></i></button>
                                 <button id="btnCenterView" title="Center View"><i class="fas fa-crosshairs"></i></button>
                                 <button id="btnSplitView" title="Split View (4 Directions)"><i class="fas fa-border-all"></i></button>
-                                <button id="btnMirroredActions" title="Mirrored Actions (edit sprites across all directions)" style="display: none;"><i class="fas fa-magic"></i></button>
+                                <button id="btnMirroredActions" title="Multi Select — click pieces to add to selection without Ctrl/Shift"><i class="fas fa-magnet"></i></button>
                             </div>
                         </div>
                     </div>
@@ -1778,9 +1780,9 @@
                     <button id="btnStop" title="Stop"><i class="fas fa-stop"></i></button>
                     <button id="btnNewFrame" title="New Frame"><i class="fas fa-plus"></i></button>
                     <button id="btnDeleteFrame" title="Delete Frame"><i class="fas fa-minus"></i></button>
-                    <button id="btnCopyFrame" title="Copy Frame"><i class="fas fa-copy"></i></button>
-                    <button id="btnPasteBefore" title="Paste Before"><i class="fas fa-paste"></i></button>
-                    <button id="btnPasteAfter" title="Paste After"><i class="fas fa-paste"></i></button>
+                    <button id="btnCopyFrame" title="Copy Frame — copies current frame, or all selected frames if multiple are selected"><i class="fas fa-copy"></i></button>
+                    <button id="btnPasteBefore" title="Paste Before — insert copied frame(s) before current frame"><i class="fas fa-paste"></i></button>
+                    <button id="btnPasteAfter" title="Paste After — insert copied frame(s) after current frame"><i class="fas fa-paste"></i></button>
                     <button id="btnReverseFrame" title="Reverse Frame"><i class="fas fa-exchange-alt"></i></button>
                 </div>
             </div>
@@ -1790,8 +1792,8 @@
     <input type="file" id="imageInput" multiple accept="image/*" style="display: none;">
     <input type="file" id="folderInput" webkitdirectory style="display: none;">
     <div id="settingsDialog" class="dialog-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0); z-index: 10000; justify-content: center; align-items: center;">
-        <div class="dialog-content" style="background: #2b2b2b; border: 2px solid #1a1a1a; padding: 20px; width: 400px; max-width: 90vw; max-height: 80vh; min-height: 300px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8); overflow: hidden;">
-            <h3 style="margin: 0 0 16px 0; font-family: 'chevyray', monospace; font-size: 16px; color: #e0e0e0; border-bottom: 1px solid #0a0a0a; padding-bottom: 8px; flex-shrink: 0;">Settings</h3>
+        <div class="dialog-content" style="background: #2b2b2b; border: 2px solid #1a1a1a; padding: 0 20px 20px; width: 400px; max-width: 90vw; max-height: 80vh; min-height: 300px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8); overflow: hidden;">
+            <div class="dialog-titlebar" style="margin: 0 -20px 16px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; flex-shrink: 0;"><i class="fas fa-cog" style="flex-shrink:0;display:block;"></i><span style="font-family: 'chevyray', monospace; font-size: 13px; color: #c0c0c0; user-select: none; line-height: 16px;">Settings</span></div>
             <div style="flex: 1; overflow-y: auto; padding-right: 8px; min-height: 0;">
                 <div style="margin-bottom: 16px;">
                     <label style="display: block; margin-bottom: 8px; font-family: 'chevyray', monospace; font-size: 12px; color: #e0e0e0;">Font:</label>
@@ -1862,6 +1864,10 @@
                             <input type="number" id="settingsSelectionBorderThicknessNumber" min="1" max="10" step="1" value="2">
                         </div>
                     </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; margin-bottom: 8px; font-family: 'chevyray', monospace; font-size: 12px; color: #e0e0e0;">Border Opacity: <span id="settingsSelectionBorderOpacityLabel">100%</span></label>
+                        <input type="range" id="settingsSelectionBorderOpacity" min="0" max="100" step="1" value="100" style="width: 100%; background: transparent; height: 8px; cursor: pointer; -webkit-appearance: none; appearance: none; border: none;">
+                    </div>
                 </div>
             </div>
             <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 16px; border-top: 1px solid #0a0a0a; padding-top: 16px; flex-shrink: 0; min-width: 0; align-items: flex-start;">
@@ -1878,7 +1884,7 @@
     </div>
     <div id="infoDialog" class="dialog-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 10000; justify-content: center; align-items: center;">
         <div class="dialog-content" style="background: #2b2b2b; border: 2px solid #1a1a1a; width: 720px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.9);">
-            <div style="background: #1e1e1e; border-bottom: 2px solid #0a0a0a; display: flex; align-items: stretch;">
+            <div class="dialog-titlebar" style="background: #1e1e1e; border-bottom: 2px solid #0a0a0a; display: flex; align-items: stretch;">
                 <div style="display: flex; align-items: center; padding: 10px 14px; gap: 8px; flex: 1;">
                     <img src="favicon.ico" style="width: 18px; height: 18px; image-rendering: pixelated;">
                     <span style="font-family: 'chevyray', monospace; font-size: 13px; color: #c0c0c0; user-select: none; -webkit-user-select: none;">Gani Editor</span>

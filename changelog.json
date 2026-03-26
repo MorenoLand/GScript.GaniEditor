@@ -1,5 +1,39 @@
 [
   {
+    "version": "2.1.1",
+    "date": "2026-03-26",
+    "changes": [
+      "Tab close confirmation now uses the custom styled dialog instead of the browser native popup",
+      "Custom CSS variables --canvas-bg, --canvas-grid, --timeline-bg, --preview-bg, --monaco-theme, --timeline-frame-bg/selected/multi, --quadrant-divider for theming canvas, grid, timeline, sprite preview, frame colors, Monaco editor, and split view divider",
+      "Monaco editor (VS Code engine) used for Edit Script and Custom CSS dialogs — Graal script syntax highlighting with colors from graalcolors.xml, error checking disabled",
+      "Native browser tooltips suppressed — custom styled tooltips now shown exclusively at correct z-index",
+      "Custom dropdowns, settings checkboxes, context menus, sprite preview canvas, defaults table, and dialog titlebars now fully themeable via custom CSS",
+      "All custom dialogs (Confirm, Alert, Settings, Edit Script, Custom CSS) now have titled headers with contextual icons",
+      "Settings dialog: added opacity slider for selection border; selection border color, thickness, and opacity now overridable via --selection-border-color, --selection-border-thickness, --selection-border-opacity CSS vars",
+      "Playback controls no longer clipped at bottom",
+      "WASD/Arrow swap active state indicator fixed — was incorrectly applied to inner icon element instead of the button",
+      "WASD/Arrow swap tooltip updates dynamically to reflect current state",
+      "Info dialog tab buttons rounded on top only (straight bottom edge connects flush to content)",
+      "Color Effect auto-enables when using the color swatch or RGB inputs",
+      "Ctrl+C/X/V to copy/cut/paste selected canvas pieces — changes tracked in undo history",
+      "Mirrored Actions button repurposed as Multi Select toggle — click pieces to add to selection without holding Ctrl/Shift",
+      "Fixed Lights mode (EFFECTMODE 0) creating visual duplication — now renders as a single-pass additive light effect",
+      "Arrow buttons beneath sprite color inputs now have tooltips explaining they cycle through attached sprites in the preview",
+      "Zoom slider no longer overwrites X Scale / Y Scale — stored as a separate _zoom multiplier applied at render/save time, preserving independent stretch values",
+      "Importing sprites from a .gani file now appears in undo history",
+      "Set Working Directory tooltip now explains it loads images from a folder into the editor cache (does not upload to server)",
+      "Settings Defaults button now properly resets font/style dropdowns to their default display state",
+      "Copy Frame now copies all selected frames when multiple are highlighted — Paste Before/After inserts the full set in order with undo support",
+      "Right-click a sprite in the left panel to Edit or Delete it — mimics Graalshop behavior",
+      "All context menus (timeline, canvas, sprite list) now use viewport-clamped positioning — no longer go off-screen",
+      "Floating tooltip text updates live when button state changes (e.g. WASD/Arrow swap tooltip now refreshes while hovering)",
+      "Edit Script dialog now has proper background/border without requiring a custom CSS theme",
+      "Dialog titlebar icons now vertically centered with the title text",
+      "GScript autocomplete and hover docs in Edit Script — powered by api.gscript.dev, shows function signatures, parameters, scope, return type, and examples",
+      "Reset Editor now clears custom CSS in addition to resetting all other settings"
+    ]
+  },
+  {
     "version": "2.1.0",
     "date": "2026-03-25",
     "changes": [
