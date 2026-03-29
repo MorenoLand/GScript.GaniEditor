@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.1.2b",
+    "date": "2026-03-29",
+    "changes": [
+      "Encrypted or binary .gani files are now rejected with an error on direct load (file picker, drag & drop, reload) — silently ignored when browsing from workspace",
+      "Right-clicking a tab shows a context menu — Rename, Close, Close to the Left, Close to the Right (bulk close prompts confirmation)",
+      "Sprite selection now uses pixel-accurate hit testing — clicking no longer selects sprites whose bounding box overlaps the cursor but whose actual pixels do not"
+    ]
+  },
+  {
     "version": "2.1.2",
     "date": "2026-03-29",
     "changes": [
