@@ -4166,6 +4166,15 @@ function updateUIVisibility() {
     if (contentArea) contentArea.style.display = hasAnimations ? "flex" : "none";
 }
 
+function updateTabScrollButtons() {
+    const tabCont = document.getElementById("tabsContainer");
+    const btnL = document.getElementById("tabScrollLeft");
+    const btnR = document.getElementById("tabScrollRight");
+    if (!tabCont || !btnL || !btnR) return;
+    const hasOverflow = tabCont.scrollWidth > tabCont.clientWidth + 2;
+    btnL.style.display = hasOverflow && tabCont.scrollLeft > 0 ? "block" : "none";
+    btnR.style.display = hasOverflow ? "block" : "none";
+}
 function updateTabs() {
     const container = document.getElementById("tabsContainer");
     container.innerHTML = "";
@@ -4276,6 +4285,7 @@ function updateTabs() {
             }
         });
     }
+    setTimeout(updateTabScrollButtons, 0);
 }
 
 function updateTabDragTarget(clientX) {
@@ -4334,53 +4344,49 @@ function handleTabDrop(sourceIndex) {
 }
 
 function showTabContextMenu(e, tabIndex) {
-    if (activeContextMenu) {
-        document.body.removeChild(activeContextMenu);
-        activeContextMenu = null;
-    }
+    if (activeContextMenu) { document.body.removeChild(activeContextMenu); activeContextMenu = null; }
     const menu = document.createElement("div");
     menu.className = "context-menu";
-    menu.style.position = "fixed";
-    menu.style.left = e.clientX + "px";
-    menu.style.top = e.clientY + "px";
-    menu.style.background = "#444";
-    menu.style.border = "1px solid #555";
-    menu.style.padding = "4px";
-    menu.style.zIndex = "10000";
-    menu.style.minWidth = "100px";
-    const closeItem = document.createElement("div");
-    closeItem.className = "context-menu-item";
-    closeItem.textContent = "Close Tab";
-    closeItem.style.padding = "4px 8px";
-    closeItem.style.cursor = "pointer";
-    closeItem.onmouseover = () => closeItem.style.background = "#555";
-    closeItem.onmouseout = () => closeItem.style.background = "transparent";
-    closeItem.onclick = (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        closeTab(tabIndex);
-        if (activeContextMenu === menu) {
-            document.body.removeChild(menu);
-            activeContextMenu = null;
-            document.removeEventListener("click", closeMenu);
-            document.removeEventListener("mousedown", closeMenu);
-        }
+    menu.style.cssText = `display:block;position:fixed;left:${e.clientX}px;top:${e.clientY}px;background:#2b2b2b;border:1px solid #404040;padding:3px 0;z-index:10000;min-width:160px;box-shadow:0 2px 6px rgba(0,0,0,0.5);font-size:12px;`;
+    const dismiss = () => {
+        if (activeContextMenu === menu && menu.parentNode) { document.body.removeChild(menu); activeContextMenu = null; }
+        document.removeEventListener("mousedown", outsideClick);
     };
-    menu.appendChild(closeItem);
+    const outsideClick = (ev) => { if (!menu.contains(ev.target)) dismiss(); };
+    const item = (label, action, disabled = false) => {
+        const d = document.createElement("div");
+        d.textContent = label;
+        d.style.cssText = `padding:5px 14px;cursor:${disabled?"default":"pointer"};color:${disabled?"#666":"#e0e0e0"};user-select:none;`;
+        if (!disabled) { d.onmouseenter = () => d.style.background = "#3d3d3d"; d.onmouseleave = () => d.style.background = ""; }
+        if (!disabled) d.onclick = () => { dismiss(); action(); };
+        return d;
+    };
+    const sep = () => { const d = document.createElement("div"); d.style.cssText = "height:1px;background:#404040;margin:3px 0;"; return d; };
+    menu.appendChild(item("Rename", () => {
+        const ani = animations[tabIndex];
+        if (!ani) return;
+        const box = document.createElement("div");
+        box.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#2b2b2b;border:1px solid #404040;padding:14px 16px;z-index:99999;min-width:260px;font-size:12px;color:#e0e0e0;box-shadow:0 2px 8px rgba(0,0,0,0.5);";
+        const input = document.createElement("input");
+        input.value = ani.fileName || `Animation ${tabIndex + 1}`;
+        input.style.cssText = "width:100%;box-sizing:border-box;background:#1a1a1a;color:#e0e0e0;border:1px solid #404040;padding:4px 6px;margin:8px 0 10px;font-family:inherit;font-size:12px;";
+        const btnRow = document.createElement("div"); btnRow.style.cssText = "display:flex;gap:8px;justify-content:flex-end;";
+        const ok = document.createElement("button"); ok.textContent = "Rename"; ok.style.cssText = "padding:4px 12px;background:#1a1a1a;color:#e0e0e0;border:1px solid #404040;cursor:pointer;font-size:12px;";
+        const cancel = document.createElement("button"); cancel.textContent = "Cancel"; cancel.style.cssText = "padding:4px 12px;background:#1a1a1a;color:#e0e0e0;border:1px solid #404040;cursor:pointer;font-size:12px;";
+        const finish = (save) => { if (save && input.value.trim()) { ani.fileName = input.value.trim(); updateTabs(); saveSession(); } document.body.removeChild(box); };
+        ok.onclick = () => finish(true); cancel.onclick = () => finish(false);
+        input.onkeydown = (ev) => { if (ev.key === "Enter") finish(true); if (ev.key === "Escape") finish(false); };
+        box.appendChild(Object.assign(document.createElement("div"), {textContent:"Rename Tab", style:"font-weight:bold;margin-bottom:4px;"}));
+        box.appendChild(input); btnRow.appendChild(ok); btnRow.appendChild(cancel); box.appendChild(btnRow);
+        document.body.appendChild(box); setTimeout(() => { input.focus(); input.select(); }, 0);
+    }));
+    menu.appendChild(sep());
+    menu.appendChild(item("Close", () => closeTab(tabIndex)));
+    menu.appendChild(item("Close to the Left", () => { const n = tabIndex; showConfirmDialog(`Close ${n} tab${n!==1?"s":""} to the left?`, (ok) => { if (ok) for (let i = tabIndex - 1; i >= 0; i--) closeTab(i); }); }, tabIndex === 0));
+    menu.appendChild(item("Close to the Right", () => { const n = animations.length - 1 - tabIndex; showConfirmDialog(`Close ${n} tab${n!==1?"s":""} to the right?`, (ok) => { if (ok) for (let i = animations.length - 1; i > tabIndex; i--) closeTab(i); }); }, tabIndex >= animations.length - 1));
     document.body.appendChild(menu);
     activeContextMenu = menu;
-    const closeMenu = (e) => {
-        if (activeContextMenu === menu && e.target !== closeItem && !menu.contains(e.target)) {
-            document.body.removeChild(menu);
-            activeContextMenu = null;
-            document.removeEventListener("click", closeMenu);
-            document.removeEventListener("mousedown", closeMenu);
-        }
-    };
-    setTimeout(() => {
-        document.addEventListener("click", closeMenu);
-        document.addEventListener("mousedown", closeMenu);
-    }, 0);
+    setTimeout(() => document.addEventListener("mousedown", outsideClick), 0);
 }
 
 let saveSessionDebounceTimer = null;
@@ -5361,6 +5367,7 @@ window.addEventListener("load", async () => {
             localStorage.setItem("ganiEditorLastOpenDir", lastOpenDirectory);
         }
         const text = await file.text();
+        if (/[\x00-\x08\x0e-\x1f]/.test(text.substring(0, 256))) { showAlertDialog(`${file.name} is not a valid plain-text .gani file (may be encrypted or binary).`); return; }
         f12Log(`Opening file: ${file.name}`);
         const ani = parseGani(text);
         f12Log("Parsed animation, defaults: " + JSON.stringify(Array.from(ani.defaultImages.entries())));
@@ -5375,13 +5382,16 @@ window.addEventListener("load", async () => {
     document.addEventListener("drop", async (e) => {
         e.preventDefault();
         const files = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith(".gani"));
+        let opened = 0;
         for (const file of files) {
             const text = await file.text();
+            if (/[\x00-\x08\x0e-\x1f]/.test(text.substring(0, 256))) { showAlertDialog(`${file.name} is not a valid plain-text .gani file (may be encrypted or binary).`); continue; }
             const ani = parseGani(text);
             ani.fileName = file.name;
             addTab(ani);
+            opened++;
         }
-        if (files.length) updateDefaultsTable();
+        if (opened) updateDefaultsTable();
     });
     document.getElementById("btnSave").onclick = async () => {
         if (!currentAnimation) return;
@@ -6941,6 +6951,7 @@ window.addEventListener("load", async () => {
                     const file = e.target.files[0];
                     if (!file) return;
                     const text = await file.text();
+                    if (/[\x00-\x08\x0e-\x1f]/.test(text.substring(0, 256))) { showAlertDialog(`${file.name} is not a valid plain-text .gani file (may be encrypted or binary).`); return; }
                     f12Log(`Reloading file: ${file.name}`);
                     const ani = parseGani(text);
                     f12Log("Reloaded animation, defaults: " + JSON.stringify(Array.from(ani.defaultImages.entries())));
@@ -7402,6 +7413,7 @@ window.addEventListener("load", async () => {
             if (!file) return;
             try {
                 const text = await file.text();
+                if (/[\x00-\x08\x0e-\x1f]/.test(text.substring(0, 256))) { showAlertDialog(`${file.name} is not a valid plain-text .gani file (may be encrypted or binary).`); return; }
                 const importAni = parseGani(text);
                 if (!importAni || importAni.sprites.size === 0) {
                     showAlertDialog("No sprites found in .gani file");
@@ -7621,10 +7633,8 @@ window.addEventListener("load", async () => {
     const tabCont = document.getElementById("tabsContainer");
     document.getElementById("tabScrollLeft").onclick = () => { tabCont.scrollLeft -= tabCont.clientWidth * 0.8; };
     document.getElementById("tabScrollRight").onclick = () => { tabCont.scrollLeft += tabCont.clientWidth * 0.8; };
-    tabCont.addEventListener("scroll", () => {
-        document.getElementById("tabScrollLeft").style.display = tabCont.scrollLeft > 0 ? "block" : "none";
-        document.getElementById("tabScrollRight").style.display = tabCont.scrollWidth > tabCont.clientWidth + 2 ? "block" : "none";
-    });
+    tabCont.addEventListener("scroll", updateTabScrollButtons);
+    new ResizeObserver(updateTabScrollButtons).observe(tabCont);
     const btnDuplicateSprite = document.getElementById("btnDuplicateSprite");
     if (btnDuplicateSprite) {
         btnDuplicateSprite.onclick = () => {
@@ -9209,7 +9219,7 @@ window.addEventListener("load", async () => {
         if (_tooltipTarget === btnSwapKeys) _tooltipEl.textContent = btnSwapKeys.dataset.title;
         saveSession();
     };
-    const APP_VERSION = "2.1.2";
+    const APP_VERSION = "2.1.2b";
     const _infoDialog = document.getElementById("infoDialog");
     const _infoClose = document.getElementById("infoClose");
     const _infoContent = document.getElementById("infoContent");
@@ -10007,6 +10017,32 @@ ${editableActions.map(a => kbRow(a.label, a.key)).join("")}
         updateItemsCombo();
         updateItemSettings();
     };
+    let _hitCanvas = null, _hitCtx = null;
+    function pieceHitsPoint(piece, wx, wy) {
+        const bb = piece.getBoundingBox(currentAnimation);
+        if (wx < bb.x || wx >= bb.x + bb.width || wy < bb.y || wy >= bb.y + bb.height) return false;
+        if (piece.type !== "sprite") return true;
+        const sprite = currentAnimation.getAniSprite(piece.spriteIndex, piece.spriteName || "");
+        if (!sprite) return true;
+        const img = getSpriteImage(sprite);
+        if (!img) return true;
+        if (!_hitCanvas) { _hitCanvas = document.createElement("canvas"); _hitCanvas.width = 1; _hitCanvas.height = 1; _hitCtx = _hitCanvas.getContext("2d"); }
+        _hitCtx.clearRect(0, 0, 1, 1);
+        _hitCtx.save();
+        _hitCtx.imageSmoothingEnabled = false;
+        _hitCtx.translate(Math.round(piece.xoffset) - wx, Math.round(piece.yoffset) - wy);
+        const _pz = piece._zoom || 1.0, _px = piece.xscale * _pz, _py = piece.yscale * _pz;
+        if (piece.rotation !== 0 || _px !== 1 || _py !== 1) {
+            const sz = piece.getSize(currentAnimation);
+            _hitCtx.translate(sz.width / 2, sz.height / 2);
+            _hitCtx.scale(_px, _py);
+            _hitCtx.rotate(piece.rotation * Math.PI / 180);
+            _hitCtx.translate(-sz.width / 2, -sz.height / 2);
+        }
+        drawSprite(_hitCtx, sprite, 0, 0);
+        _hitCtx.restore();
+        return _hitCtx.getImageData(0, 0, 1, 1).data[3] > 10;
+    }
     mainCanvas.onmousedown = (e) => {
         const rect = mainCanvas.getBoundingClientRect();
         const uiScale = getUIScale();
@@ -10038,8 +10074,7 @@ ${editableActions.map(a => kbRow(a.label, a.key)).join("")}
                     const actualDir2 = getDirIndex(currentDir);
                     const pieces2 = frame.pieces[actualDir2] || [];
                     for (let i = pieces2.length - 1; i >= 0; i--) {
-                        const bb = pieces2[i].getBoundingBox(currentAnimation);
-                        if (x >= bb.x && x < bb.x + bb.width && y >= bb.y && y < bb.y + bb.height) { _overSprite = true; break; }
+                        if (pieceHitsPoint(pieces2[i], x, y)) { _overSprite = true; break; }
                     }
                 }
             }
@@ -10067,8 +10102,7 @@ ${editableActions.map(a => kbRow(a.label, a.key)).join("")}
                     const pieces = frame.pieces[actualDir] || [];
                     let hitPiece = null;
                     for (let i = pieces.length - 1; i >= 0; i--) {
-                        const bb = pieces[i].getBoundingBox(currentAnimation);
-                        if (x >= bb.x && x < bb.x + bb.width && y >= bb.y && y < bb.y + bb.height) { hitPiece = pieces[i]; break; }
+                        if (pieceHitsPoint(pieces[i], x, y)) { hitPiece = pieces[i]; break; }
                     }
                     if (hitPiece) {
                         if (selectedPieces.has(hitPiece)) selectedPieces.delete(hitPiece); else { selectedPieces.add(hitPiece); selectedPieceDir = actualDir; }
@@ -10155,8 +10189,8 @@ ${editableActions.map(a => kbRow(a.label, a.key)).join("")}
                 let found = false;
                 for (let i = pieces.length - 1; i >= 0; i--) {
                     const piece = pieces[i];
-                    const bb = piece.getBoundingBox(currentAnimation);
-                    if (x >= bb.x && x < bb.x + bb.width && y >= bb.y && y < bb.y + bb.height) {
+                    if (!pieceHitsPoint(piece, x, y)) continue;
+                    {
                         if (e.shiftKey) {
                             if (selectedPieces.has(piece)) {
                                 selectedPieces.delete(piece);
@@ -11685,6 +11719,7 @@ function showWorkspaceBrowserDialog() {
                     overlay.remove();
                     try {
                         const text=await file.text();
+                        if (/[\x00-\x08\x0e-\x1f]/.test(text.substring(0, 256))) return;
                         const ani=parseGani(text);
                         ani.fileName=file.name;
                         addTab(ani,file.name);
