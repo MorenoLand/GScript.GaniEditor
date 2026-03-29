@@ -5286,24 +5286,20 @@ window.addEventListener("load", async () => {
             try {
                 let files = [];
 
-                if (localFileCache.ganis && localFileCache.ganis.length > 0) {
-                    files = localFileCache.ganis.filter(file => file.endsWith('.gani')).map(file => file.split('/').pop());
-                } else {
-                    const response = await fetch('ganis/');
-                    if (response.ok) {
-                        try {
-                            const data = await response.json();
-                            if (Array.isArray(data)) {
-                                files = data.filter(file => file.endsWith('.gani')).map(file => file.replace('.gani', '') + '.gani');
-                            } else {
-                                files = fallbackGaniList;
-                            }
-                        } catch (e) {
+                const response = await fetch('ganis/');
+                if (response.ok) {
+                    try {
+                        const data = await response.json();
+                        if (Array.isArray(data)) {
+                            files = data.filter(file => file.endsWith('.gani')).map(file => file.replace('.gani', '') + '.gani');
+                        } else {
                             files = fallbackGaniList;
                         }
-                    } else {
+                    } catch (e) {
                         files = fallbackGaniList;
                     }
+                } else {
+                    files = fallbackGaniList;
                 }
 
                 container.innerHTML = "";
@@ -7622,6 +7618,13 @@ window.addEventListener("load", async () => {
         }
     };
     document.getElementById("btnBrowseWorkspace").onclick = () => showWorkspaceBrowserDialog();
+    const tabCont = document.getElementById("tabsContainer");
+    document.getElementById("tabScrollLeft").onclick = () => { tabCont.scrollLeft -= tabCont.clientWidth * 0.8; };
+    document.getElementById("tabScrollRight").onclick = () => { tabCont.scrollLeft += tabCont.clientWidth * 0.8; };
+    tabCont.addEventListener("scroll", () => {
+        document.getElementById("tabScrollLeft").style.display = tabCont.scrollLeft > 0 ? "block" : "none";
+        document.getElementById("tabScrollRight").style.display = tabCont.scrollWidth > tabCont.clientWidth + 2 ? "block" : "none";
+    });
     const btnDuplicateSprite = document.getElementById("btnDuplicateSprite");
     if (btnDuplicateSprite) {
         btnDuplicateSprite.onclick = () => {
@@ -9206,7 +9209,7 @@ window.addEventListener("load", async () => {
         if (_tooltipTarget === btnSwapKeys) _tooltipEl.textContent = btnSwapKeys.dataset.title;
         saveSession();
     };
-    const APP_VERSION = "2.1.1f";
+    const APP_VERSION = "2.1.2";
     const _infoDialog = document.getElementById("infoDialog");
     const _infoClose = document.getElementById("infoClose");
     const _infoContent = document.getElementById("infoContent");
@@ -11581,6 +11584,7 @@ function showWorkspaceBrowserDialog() {
         for (const [p,items] of folders) { if (items.length>=2) result.folders.set(p,items); else result.files.push(...items); }
         return result;
     };
+    const fuzzy = (s,q) => { let i=0; for(const c of s) if(i<q.length&&c===q[i]) i++; return i===q.length; };
     const renderImages = (allKeys) => {
         if (activeObserver) { activeObserver.disconnect(); activeObserver = null; }
         const q = searchInput.value.trim().toLowerCase();
@@ -11600,9 +11604,9 @@ function showWorkspaceBrowserDialog() {
         const scrollArea = document.createElement("div"); scrollArea.style.cssText = "flex:1;overflow:auto;padding:8px;";
         let showFolders = [], displayKeys = [];
         if (folder) {
-            displayKeys = allKeys.filter(k => k.startsWith(folder+'_') && (!q || k.includes(q)));
+            displayKeys = allKeys.filter(k => k.startsWith(folder+'_') && (!q || fuzzy(k,q)));
         } else if (q) {
-            displayKeys = allKeys.filter(k => k.includes(q));
+            displayKeys = allKeys.filter(k => fuzzy(k,q));
         } else {
             const groups = buildPrefixGroups(allKeys);
             showFolders = [...groups.folders.entries()].sort(([a],[b])=>a.localeCompare(b));
@@ -11670,7 +11674,7 @@ function showWorkspaceBrowserDialog() {
         tabPane.innerHTML = "";
         if (activeTab === "ganis") {
             const q = searchInput.value.trim().toLowerCase();
-            const filtered = q ? ganiFiles.filter(f=>f.name.toLowerCase().includes(q)) : ganiFiles;
+            const filtered = q ? ganiFiles.filter(f=>fuzzy(f.name.toLowerCase(),q)) : ganiFiles;
             if (!filtered.length) { tabPane.innerHTML=`<div style="padding:20px;color:${dc.text};opacity:0.5;text-align:center;">${ganiFiles.length?"No matches.":"No ganis in workspace."}</div>`; return; }
             const list = document.createElement("div"); list.style.cssText="display:flex;flex-direction:column;gap:1px;padding:8px;overflow:auto;flex:1;";
             for (const file of filtered) {
@@ -11680,22 +11684,11 @@ function showWorkspaceBrowserDialog() {
                 item.onclick=async()=>{
                     overlay.remove();
                     try {
-                        const text=await file.text(); const importAni=parseGani(text);
-                        if(!importAni||importAni.sprites.size===0){showAlertDialog("No sprites found in "+file.name);return;}
-                        for(const[k,v]of importAni.defaultImages){if(!currentAnimation.getDefaultImageName(k))currentAnimation.setDefaultImage(k,v);}
-                        const oldState=serializeAnimationState();let existsOptionAll=null,importedCount=0;
-                        for(const sprite of importAni.sprites.values()){
-                            let spriteIndex=sprite.index,existsOption=existsOptionAll;
-                            if(currentAnimation.sprites.has(spriteIndex)){if(existsOptionAll===null){showConfirmDialog("Sprite index already in use.\n\nOK to skip, Cancel to assign new index.\n\nApply to all?",applyAll=>{existsOption=applyAll?"skip":"new";if(applyAll)existsOptionAll=existsOption;});}if(existsOption==="skip")continue;if(existsOption==="new")spriteIndex=currentAnimation.nextSpriteIndex++;}
-                            const ns=new AniSprite();ns.index=spriteIndex;ns.comment=sprite.comment||"Imported Sprite";ns.type=sprite.type||"CUSTOM";ns.customImageName=sprite.customImageName||"";
-                            ns.left=sprite.left||0;ns.top=sprite.top||0;ns.width=sprite.width||32;ns.height=sprite.height||32;ns.rotation=sprite.rotation||0;ns.xscale=sprite.xscale||1;ns.yscale=sprite.yscale||1;
-                            ns.colorEffectEnabled=sprite.colorEffectEnabled||false;ns.colorEffect=sprite.colorEffect?{...sprite.colorEffect}:{r:255,g:255,b:255,a:255};ns.m_drawIndex=sprite.m_drawIndex||0;
-                            ns.attachedSprites=(sprite.attachedSprites||[]).map(a=>({index:a.index||a,offset:a.offset?{...a.offset}:(a.x!==undefined?{x:a.x,y:a.y}:{x:0,y:0})}));
-                            ns.updateBoundingBox();currentAnimation.addSprite(ns);importedCount++;
-                        }
-                        if(importedCount>0){const newState=serializeAnimationState();addUndoCommand({description:`Import ${importedCount} Sprite${importedCount>1?'s':''}`,oldState,newState,undo:()=>restoreAnimationState(oldState),redo:()=>restoreAnimationState(newState)});}
-                        updateSpritesList();updateDefaultsTable();redraw();showAlertDialog(`Imported ${importedCount} sprite(s) from ${file.name}`);
-                    } catch(err){showAlertDialog("Failed to import: "+err.message);}
+                        const text=await file.text();
+                        const ani=parseGani(text);
+                        ani.fileName=file.name;
+                        addTab(ani,file.name);
+                    } catch(err){showAlertDialog("Failed to open: "+err.message);}
                 };
                 list.appendChild(item);
             }
