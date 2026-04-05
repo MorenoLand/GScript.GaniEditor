@@ -220,6 +220,13 @@
     async function _tauriOpenFile(fp) {
         const name = fp.replace(/\\/g,'/').split('/').pop();
         const ext = name.split('.').pop().toLowerCase();
+        if (ext === 'gani') {
+            if (_currentApp !== 'gani') { window._pendingOpenFile = fp; injectGani(); return; }
+            const text = await window.__TAURI__.fs.readTextFile(fp).catch(() => null);
+            if (text && typeof parseGani === 'function' && typeof addTab === 'function') { const ani = parseGani(text); if (ani) { ani.fileName = name; addTab(ani, name); } }
+            return;
+        }
+        if (_currentApp !== 'level') { window._pendingOpenFile = fp; injectLevel(); return; }
         if (ext === 'graal' || ext === 'zelda') {
             const data = await window.__TAURI__.fs.readFile(fp).catch(() => null);
             if (data && window.levelEditor) window.levelEditor.openFromBuffer(data.buffer, name, fp);
