@@ -6769,7 +6769,7 @@ class LevelEditor {
         if (oldStyle) oldStyle.remove();
         const tag = document.getElementById('levelEditorCustomUserCSS');
         if (tag) tag.textContent = '';
-        localStorage.removeItem('levelEditorCustomCSS');
+        localStorage.removeItem('graalsuite_customCSS');
         const schemes = {
             'fusion-light': { bg:'#f5f5f5', panel:'#ffffff', border:'#d0d0d0', text:'#1a1a1a', hover:'#e8e8e8', button:'#ffffff', buttonText:'#1a1a1a', buttonHover:'#f0f0f0', tabActive:'#ffffff', inputBg:'#ffffff' },
             'fusion-dark':  { bg:'#1e1e1e', panel:'#2d2d2d', border:'#0f0f0f', text:'#e8e8e8', hover:'#3d3d3d' },
@@ -7000,7 +7000,7 @@ class LevelEditor {
     }
 
     initCustomCSS() {
-        const saved = localStorage.getItem('levelEditorCustomCSS');
+        const saved = localStorage.getItem('graalsuite_customCSS');
         if (!saved) return;
         let tag = document.getElementById('levelEditorCustomUserCSS');
         if (!tag) { tag = document.createElement('style'); tag.id = 'levelEditorCustomUserCSS'; document.head.appendChild(tag); }
@@ -7052,7 +7052,7 @@ class LevelEditor {
             let tag = document.getElementById('levelEditorCustomUserCSS');
             if (!tag) { tag = document.createElement('style'); tag.id = 'levelEditorCustomUserCSS'; document.head.appendChild(tag); }
             tag.textContent = css;
-            localStorage.setItem('levelEditorCustomCSS', css);
+            localStorage.setItem('graalsuite_customCSS', css);
         };
         overlay.querySelector('#levelCssApply').onclick = applyCSS;
         overlay.querySelector('#levelCssClose').onclick = () => { if (ed) ed.dispose(); document.body.removeChild(overlay); };
@@ -7061,7 +7061,7 @@ class LevelEditor {
             setValue('');
             const tag = document.getElementById('levelEditorCustomUserCSS');
             if (tag) tag.textContent = '';
-            localStorage.removeItem('levelEditorCustomCSS');
+            localStorage.removeItem('graalsuite_customCSS');
         };
         overlay.querySelector('#levelCssImport').onclick = () => {
             const inp = document.createElement('input');

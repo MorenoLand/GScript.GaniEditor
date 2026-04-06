@@ -8175,7 +8175,7 @@ window.addEventListener("load", async () => {
                 const scheme = item.getAttribute("data-scheme");
                 const customTag = document.getElementById("customUserCSS");
                 if (customTag) customTag.textContent = "";
-                localStorage.removeItem("ganiEditorCustomCSS");
+                localStorage.removeItem("graalsuite_customCSS");
                 applyColorScheme(scheme);
                 const schemes = {
                     "fusion-light": { hover: "#e8e8e8" },
@@ -8225,7 +8225,7 @@ window.addEventListener("load", async () => {
         }
     }
     (function initCustomCSS() {
-        const saved = localStorage.getItem("ganiEditorCustomCSS");
+        const saved = localStorage.getItem("graalsuite_customCSS");
         if (saved) {
             let tag = document.getElementById("customUserCSS");
             if (!tag) { tag = document.createElement("style"); tag.id = "customUserCSS"; document.head.appendChild(tag); }
@@ -8278,7 +8278,7 @@ window.addEventListener("load", async () => {
             let tag = document.getElementById("customUserCSS");
             if (!tag) { tag = document.createElement("style"); tag.id = "customUserCSS"; document.head.appendChild(tag); }
             tag.textContent = css;
-            localStorage.setItem("ganiEditorCustomCSS", css);
+            localStorage.setItem("graalsuite_customCSS", css);
             requestAnimationFrame(syncCanvasBgFromCSS);
         };
         overlay.querySelector("#cssApply").onclick = applyCSS;
@@ -8288,7 +8288,7 @@ window.addEventListener("load", async () => {
             setValue("");
             const tag = document.getElementById("customUserCSS");
             if (tag) tag.textContent = "";
-            localStorage.removeItem("ganiEditorCustomCSS");
+            localStorage.removeItem("graalsuite_customCSS");
         };
         overlay.querySelector("#cssImport").onclick = () => {
             const input = document.createElement("input");
@@ -9122,7 +9122,7 @@ window.addEventListener("load", async () => {
             applyColorScheme("default");
             const _customTag = document.getElementById("customUserCSS");
             if (_customTag) _customTag.textContent = "";
-            localStorage.removeItem("ganiEditorCustomCSS");
+            localStorage.removeItem("graalsuite_customCSS");
             applySelectionBorderColor("#00ff00", true);
             applySelectionBorderThickness(2, true);
             if (settingsFont) {
