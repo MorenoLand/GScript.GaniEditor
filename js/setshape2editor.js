@@ -3,6 +3,7 @@ class SetshapeEditor {
         this.root = root;
         this.tileSize = 16;
         this.tileMap = new Array(64 * 64).fill(0);
+        this.history = [new Array(64 * 64).fill(0)]; this.historyIndex = 0;
         this.selectedBrush = 22;
         this.cutMode = false;
         this.backgroundImage = null;
@@ -52,7 +53,7 @@ class SetshapeEditor {
 
     _bindEvents() {
         this._q('generateBtn').onclick = () => this._generate();
-        this._q('clearBtn').onclick = () => { this.tileMap.fill(0); this._render(); };
+        this._q('clearBtn').onclick = () => { this._pushHistory(); this.tileMap.fill(0); this._render(); };
         this._q('importBtn').onclick = () => this._showImport();
         this._q('cutBtn').onclick = () => this._toggleCut();
         const fi = this._q('fileInput');
@@ -83,11 +84,45 @@ class SetshapeEditor {
         this._q('importConfirmBtn').onclick = () => this._importSetshape();
 
         new ResizeObserver(() => { this._resizeCanvas(); this._render(); }).observe(container);
+        document.addEventListener('keydown', e => {
+            const dlg = document.getElementById('_ss2Dialog');
+            if (!dlg || dlg.style.display === 'none') return;
+            if (e.ctrlKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); this._undo(); }
+            else if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); this._redo(); }
+        });
     }
 
-    _copy(textarea, btn) {
-        textarea.select(); document.execCommand('copy'); window.getSelection()?.removeAllRanges();
+    _copy(el, btn) {
+        const text = el.tagName === 'TEXTAREA' ? el.value : el.textContent;
+        if (navigator.clipboard) { navigator.clipboard.writeText(text); }
+        else { const ta = Object.assign(document.createElement('textarea'), {value:text}); ta.style.cssText='position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
         const orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = orig, 1500);
+    }
+
+    _pushHistory() {
+        this.history = this.history.slice(0, this.historyIndex + 1);
+        this.history.push(this.tileMap.slice());
+        this.historyIndex = this.history.length - 1;
+        if (this.history.length > 50) { this.history.shift(); this.historyIndex--; }
+    }
+    _undo() {
+        if (this.historyIndex <= 0) return;
+        this.historyIndex--;
+        this.tileMap = this.history[this.historyIndex].slice();
+        this._render();
+    }
+    _redo() {
+        if (this.historyIndex >= this.history.length - 1) return;
+        this.historyIndex++;
+        this.tileMap = this.history[this.historyIndex].slice();
+        this._render();
+    }
+    _highlight(code) {
+        return code
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/(".*?")/g, '<span style="color:#ce9178">$1</span>')
+            .replace(/\b(setshape2|setimgpart)\b/g, '<span style="color:#4ec9b0">$1</span>')
+            .replace(/\b(\d+)\b/g, '<span style="color:#b5cea8">$1</span>');
     }
 
     _resizeCanvas() {
@@ -102,7 +137,7 @@ class SetshapeEditor {
             const wx = (x - this.offsetX) / this.zoomLevel, wy = (y - this.offsetY) / this.zoomLevel;
             this.selectionStart = (e.shiftKey || e.button === 2) ? { x: Math.floor(wx / this.tileSize) * this.tileSize, y: Math.floor(wy / this.tileSize) * this.tileSize } : { x: wx, y: wy };
             this.selectionEnd = { ...this.selectionStart }; this.currentSelection = null;
-        } else { this.isDrawing = true; this.drawMode = e.button === 0 ? 1 : 2; this._act(x, y); }
+        } else { this._pushHistory(); this.isDrawing = true; this.drawMode = e.button === 0 ? 1 : 2; this._act(x, y); }
     }
 
     _onMove(e) {
@@ -144,7 +179,7 @@ class SetshapeEditor {
 
     _toggleCut() {
         this.cutMode = !this.cutMode;
-        this._q('cutBtn').textContent = this.cutMode ? 'Cancel' : 'Cut';
+        this._q('cutBtn').textContent = this.cutMode ? 'Cancel' : 'Setimgpart';
         this._q('picker').style.display = this.cutMode ? 'none' : 'flex';
         this._render();
     }
@@ -175,13 +210,13 @@ class SetshapeEditor {
             if ((i + 1) % this.currentWidth === 0) out += '\n';
         }
         out += gs1 ? `${ind}};` : `${ind}});`;
-        this._q('outputText').value = out;
+        this._q('outputText').innerHTML = this._highlight(out);
     }
 
     _showSetimgpart() {
         const s = this.currentSelection; if (!s) return;
         const name = this.currentImageFile ? this.currentImageFile.name : 'imagename.png';
-        this._q('setimgpartText').value = `setimgpart(${name}, ${Math.floor(s.x)}, ${Math.floor(s.y)}, ${Math.floor(s.width)}, ${Math.floor(s.height)});`;
+        this._q('setimgpartText').innerHTML = this._highlight(`setimgpart(${name}, ${Math.floor(s.x)}, ${Math.floor(s.y)}, ${Math.floor(s.width)}, ${Math.floor(s.height)});`);
         this._q('setimgpartModal').style.display = 'flex';
     }
 
@@ -194,7 +229,7 @@ class SetshapeEditor {
         const m = gs1 || gs2; if (!m) return;
         const w = parseInt(m[1]), h = parseInt(m[2]);
         const nums = m[3].match(/\d+/g); if (!nums || nums.length !== w * h) return;
-        this.tileMap.fill(0);
+        this._pushHistory(); this.tileMap.fill(0);
         nums.forEach((n, i) => { const x = i % w, y = Math.floor(i / w); if (x < 64 && y < 64) this.tileMap[x + y * 64] = parseInt(n); });
         this.offsetX = 0; this.offsetY = 0; this.zoomLevel = 1;
         this._q('zoomLabel').textContent = 'Zoom: 100%';
@@ -240,18 +275,19 @@ class SetshapeEditor {
         if (document.getElementById('_ss2Dialog')) { document.getElementById('_ss2Dialog').style.display = 'flex'; return; }
         const btnStyle = 'background:#3a3a3a;color:#ddd;border:1px solid #0a0a0a;border-top:1px solid #555;border-left:1px solid #555;padding:4px 12px;cursor:pointer;font-family:chevyray,monospace;font-size:12px;';
         const taStyle = 'width:100%;height:260px;background:#1a1a1a;color:#ddd;border:1px solid #3a3a3a;font-family:"Courier New",monospace;font-size:12px;padding:8px;resize:vertical;box-sizing:border-box;white-space:pre;overflow-x:auto;';
+        const preStyle = 'width:100%;height:260px;background:#1a1a1a;color:#ddd;border:1px solid #3a3a3a;font-family:"Courier New",monospace;font-size:12px;padding:8px;box-sizing:border-box;white-space:pre;overflow:auto;margin:0;';
         const dlg = document.createElement('div');
         dlg.id = '_ss2Dialog';
         dlg.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9000;pointer-events:none;';
         dlg.innerHTML = `
-<div style="background:#1e1e1e;border:1px solid #3a3a3a;display:flex;flex-direction:column;width:860px;height:580px;max-width:98vw;max-height:96vh;pointer-events:all;box-shadow:0 8px 32px rgba(0,0,0,0.8);">
-  <div style="display:flex;align-items:center;background:#2a2a2a;border-bottom:1px solid #111;padding:4px 8px;gap:6px;cursor:move;" id="_ss2Drag">
-    <span style="color:#ddd;font-family:chevyray,monospace;font-size:13px;flex:1;display:flex;align-items:center;gap:5px;line-height:1;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACbUlEQVQ4y52P20uTcRzGn9972MEdHBvOw1JZZk4dTjyXhGEGUgkWFJH1P3QTQXgVne6UThCEFxVBYWVgWCCBQ6IM0cBkouLxTbc5NJzv67b39/66SG2pQfXcfPnC83y/n4fgP1RZd8JAeJ4nIDH+X8OFpQdyKE2063T6S5QmwgIAVNUdE0yWVCMhAGMbTgYQAjAAK5FwS2Zm5sGhgf6LvCC0rq4s3fBV13Z+HRwAceXuE1PtzisAvAD5/R0BwBisNkfxKbfsGdHcseHRQF35oYbHfW9ePZweH2kTIqEFc15Rme/chTOKOz+/eiMFgDCAEQBsKbzk6H/WQWrNU3pDZUW3v7fnqiJH72mUMmHzGdVojijq8vCrAQAgHoth/EMv0uk3+OfNpMwxnDbrSi9YNJrIwuwk45KJ2bYZi63jXVcXrMHPWLSWYH/jWfi/u+LrTGyKhCQOAITtlTcnpRSTYxNw5XkgGS1objyCGSmMZUXt9fe8OOnM2KPuOJAsjufg8RZCmplDia8IgigCAHhB0ADEQ4vzP327hdkGB8fxyHbnQhBFKLKMdUUBRzh9fVOLbtO7KwHZtklzEtpv3eyU12QZYLA50i+X1tRfH/74XtuVIJkkGo3iwe07jxi0+0Vl5a8bmk+vBr586jNZbW1bBIQQHiA81bQdB1SVQlW1YNXho63dTzuOuwuK07wVNXaAtwOAoFFKOY7kTEwHfRPTwR0UaiIBg8nsefv8ybW9Hm+9McWUPTo0GLLY7IGtunpDSkaK2VL4pyrOrNzzdmeWh+O4OGOANDX2UllbvRtamGUEfyczCDEk7ctgjALAD3gS6nZ20OQgAAAAAElFTkSuQmCC" width="14" height="14" style="image-rendering:pixelated;">Setshape2 Editor</span>
+<div class="dialog-content" style="background:#1e1e1e;border:1px solid #3a3a3a;display:flex;flex-direction:column;width:860px;height:580px;max-width:98vw;max-height:96vh;pointer-events:all;box-shadow:0 8px 32px rgba(0,0,0,0.8);">
+  <div class="dialog-titlebar" style="display:flex;align-items:center;background:#2a2a2a;border-bottom:1px solid #111;padding:4px 8px;gap:6px;cursor:move;" id="_ss2Drag">
+    <span style="color:#ddd;font-family:chevyray,monospace;font-size:13px;flex:1;display:flex;align-items:center;gap:5px;line-height:1;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACbUlEQVQ4y52P20uTcRzGn9972MEdHBvOw1JZZk4dTjyXhGEGUgkWFJH1P3QTQXgVne6UThCEFxVBYWVgWCCBQ6IM0cBkouLxTbc5NJzv67b39/66SG2pQfXcfPnC83y/n4fgP1RZd8JAeJ4nIDH+X8OFpQdyKE2063T6S5QmwgIAVNUdE0yWVCMhAGMbTgYQAjAAK5FwS2Zm5sGhgf6LvCC0rq4s3fBV13Z+HRwAceXuE1PtzisAvAD5/R0BwBisNkfxKbfsGdHcseHRQF35oYbHfW9ePZweH2kTIqEFc15Rme/chTOKOz+/eiMFgDCAEQBsKbzk6H/WQWrNU3pDZUW3v7fnqiJH72mUMmHzGdVojijq8vCrAQAgHoth/EMv0uk3+OfNpMwxnDbrSi9YNJrIwuwk45KJ2bYZi63jXVcXrMHPWLSWYH/jWfi/u+LrTGyKhCQOAITtlTcnpRSTYxNw5XkgGS1objyCGSmMZUXt9fe8OOnM2KPuOJAsjufg8RZCmplDia8IgigCAHhB0ADEQ4vzP327hdkGB8fxyHbnQhBFKLKMdUUBRzh9fVOLbtO7KwHZtklzEtpv3eyU12QZYLA50i+X1tRfH/74XtuVIJkkGo3iwe07jxi0+0Vl5a8bmk+vBr586jNZbW1bBIQQHiA81bQdB1SVQlW1YNXho63dTzuOuwuK07wVNXaAtwOAoFFKOY7kTEwHfRPTwR0UaiIBg8nsefv8ybW9Hm+9McWUPTo0GLLY7IGtunpDSkaK2VL4pyrOrNzzdmeWh+O4OGOANDX2UllbvRtamGUEfyczCDEk7ctgjALAD3gS6nZ20OQgAAAAAElFTkSuQmCC" width="14" height="14" style="image-rendering:pixelated;">Setshape2/setimgpart Editor</span>
     <button style="${btnStyle}" data-ss2="generateBtn">Generate</button>
     <button style="${btnStyle}" data-ss2="clearBtn">Clear</button>
     <button style="${btnStyle}" data-ss2="importBtn">Import</button>
     <button style="${btnStyle}" data-ss2="loadImageBtn">Load Image</button>
-    <button style="${btnStyle}" data-ss2="cutBtn">Cut</button>
+    <button style="${btnStyle}" data-ss2="cutBtn">Setimgpart</button>
     <input type="file" data-ss2="fileInput" accept=".png,.jpg,.jpeg,.gif,.mng" style="display:none;">
     <button style="${btnStyle}" id="_ss2Close">✕</button>
   </div>
@@ -267,7 +303,7 @@ class SetshapeEditor {
     <div style="background:#1e1e1e;border:1px solid #3a3a3a;min-width:700px;max-width:90vw;display:flex;flex-direction:column;">
       <div style="background:#2a2a2a;padding:8px 12px;color:#ddd;font-family:chevyray,monospace;">Setshape2 Output</div>
       <div style="padding:14px;display:flex;flex-direction:column;gap:8px;">
-        <textarea data-ss2="outputText" readonly style="${taStyle}"></textarea>
+        <pre data-ss2="outputText" style="${preStyle}"></pre>
         <div style="color:#aaa;font-size:12px;">Indent: <input type="range" data-ss2="indentSlider" min="0" max="20" value="1" style="width:90px;vertical-align:middle;"> <span data-ss2="indentValue">1</span>&nbsp;&nbsp;<label style="color:#aaa;"><input type="checkbox" data-ss2="gs1Checkbox"> GS1</label></div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;padding:8px 12px;border-top:1px solid #2a2a2a;">
@@ -280,7 +316,7 @@ class SetshapeEditor {
   <div data-ss2="setimgpartModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9100;align-items:center;justify-content:center;">
     <div style="background:#1e1e1e;border:1px solid #3a3a3a;min-width:420px;display:flex;flex-direction:column;">
       <div style="background:#2a2a2a;padding:8px 12px;color:#ddd;font-family:chevyray,monospace;">Setimgpart Output</div>
-      <div style="padding:14px;"><textarea data-ss2="setimgpartText" readonly style="${taStyle}height:80px;"></textarea></div>
+      <div style="padding:14px;"><pre data-ss2="setimgpartText" style="${preStyle}height:80px;"></pre></div>
       <div style="display:flex;justify-content:flex-end;gap:8px;padding:8px 12px;border-top:1px solid #2a2a2a;">
         <button style="${btnStyle}" data-ss2="copySetimgpartBtn">Copy</button>
         <button style="${btnStyle}" data-ss2="closeSetimgpartBtn">Close</button>

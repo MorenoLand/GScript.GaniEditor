@@ -84,7 +84,26 @@
         const infoClose = document.getElementById('infoClose');
         const infoDialog = document.getElementById('infoDialog');
         if (infoClose) infoClose.onclick = () => { infoDialog.style.display = 'none'; };
-        if (infoDialog) { infoDialog.onclick = e => { if (e.target === infoDialog) infoDialog.style.display = 'none'; }; document.querySelectorAll('.info-tab-btn').forEach(btn => { btn.onclick = () => window.openInfoDialog(btn.dataset.tab); }); }
+        if (infoDialog) {
+            infoDialog.onclick = e => { if (e.target === infoDialog) infoDialog.style.display = 'none'; };
+            document.querySelectorAll('.info-tab-btn').forEach(btn => { btn.onclick = () => window.openInfoDialog(btn.dataset.tab); });
+            const dlgContent = infoDialog.querySelector('.dialog-content');
+            const dlgTitlebar = infoDialog.querySelector('.dialog-titlebar');
+            if (dlgTitlebar && dlgContent) {
+                dlgTitlebar.style.cursor = 'move';
+                let _dx = 0, _dy = 0, _dragging = false;
+                dlgTitlebar.addEventListener('mousedown', e => {
+                    if (e.target.tagName === 'BUTTON') return;
+                    const r = dlgContent.getBoundingClientRect();
+                    if (!dlgContent.style.left) { dlgContent.style.cssText += ';position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;margin:0;'; infoDialog.style.alignItems = 'flex-start'; infoDialog.style.justifyContent = 'flex-start'; }
+                    _dx = e.clientX - dlgContent.getBoundingClientRect().left;
+                    _dy = e.clientY - dlgContent.getBoundingClientRect().top;
+                    _dragging = true; e.preventDefault();
+                });
+                document.addEventListener('mousemove', e => { if (!_dragging) return; dlgContent.style.left = (e.clientX - _dx) + 'px'; dlgContent.style.top = (e.clientY - _dy) + 'px'; });
+                document.addEventListener('mouseup', () => _dragging = false);
+            }
+        }
     });
 
     if (_isTauri) {
@@ -711,6 +730,8 @@
                     <div class="color-scheme-item" data-scheme="light-style">Light Style</div>
                     <div class="color-scheme-item" data-scheme="ayu-mirage">Ayu Mirage</div>
                     <div class="color-scheme-item" data-scheme="dracula">Dracula</div>
+                    <div style="height:1px;background:#404040;margin:4px 0;"></div>
+                    <div id="btnCustomCSS" style="padding:8px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;color:#4a9eff;user-select:none;">Custom CSS...</div>
                 </div>
             </div>
             <div style="width:1px;background:#1a1a1a;margin:0 4px;"></div>
@@ -896,6 +917,11 @@
                                 </div>
                                 <canvas id="tileObjectPreview" style="border:1px solid #1a1a1a;image-rendering:pixelated;max-width:100%;background:#1a1a1a;min-height:48px;"></canvas>
                                 <button id="btnUseTileObject" style="background:#4472C4;border:1px solid #3060a0;color:#fff;padding:4px 8px;cursor:pointer;font-size:12px;">Use as Stamp</button>
+                                <div style="display:flex;gap:4px;">
+                                    <button id="btnExportTileObjects" title="Export all user groups to JSON" style="flex:1;background:#353535;border:1px solid #1a1a1a;color:#e0e0e0;padding:4px 8px;cursor:pointer;font-size:12px;"><i class="fas fa-download"></i> Export</button>
+                                    <button id="btnImportTileObjects" title="Import groups from JSON" style="flex:1;background:#353535;border:1px solid #1a1a1a;color:#e0e0e0;padding:4px 8px;cursor:pointer;font-size:12px;"><i class="fas fa-upload"></i> Import</button>
+                                    <input type="file" id="tileObjectsImportInput" accept=".json" style="display:none;">
+                                </div>
                             </div>
                         </div>
                         <div class="tab-panel" id="layers-tab">

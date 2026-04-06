@@ -1,4 +1,5 @@
 
+const APP_VERSION = '1.0.92';
 var _isTauri = window.__TAURI__ != null;
 var _tauri = _isTauri ? window.__TAURI__ : null;
 
@@ -897,6 +898,7 @@ class LevelEditor {
     }
 
     handleMouseDown(e) {
+        if (!this.level) return;
         if (this._playMode && !this._editBypass) return;
         const coords = this.getCanvasCoords(e);
         if (this._linkPickMode && e.button === 0) {
@@ -1132,6 +1134,7 @@ class LevelEditor {
     }
 
     handleMouseMove(e) {
+        if (!this.level) return;
         if (this._linkPickMode && this._linkPickDrag) {
             const coords = this.getCanvasCoords(e);
             const tw = this.level.tileWidth || 16, th = this.level.tileHeight || 16;
@@ -1306,6 +1309,7 @@ class LevelEditor {
     }
 
     handleMouseUp(e) {
+        if (!this.level) return;
         if (this._linkPickMode && this._linkPickDrag && e.button === 0) {
             const d = this._linkPickDrag;
             this._linkPickDrag = null;
@@ -2737,6 +2741,7 @@ class LevelEditor {
                         const canvasY = (e.clientY - rect.top) * scaleY;
                         const x = Math.floor(canvasX / tileWidth);
                         const y = Math.floor(canvasY / tileHeight);
+                        if (!this.level?.tilesetImage) return;
                         const tilesPerRow = Math.floor(this.level.tilesetImage.width / tileWidth);
                         const maxY = Math.floor(this.level.tilesetImage.height / tileHeight);
                         if (x >= 0 && y >= 0 && x < tilesPerRow && y < maxY) {
@@ -2891,14 +2896,15 @@ class LevelEditor {
                 close();
                 const fmt = btn.dataset.fmt;
                 const level = new Level(width, height);
-                if (this.level && this.level.tilesetImage) { level.tilesetImage = this.level.tilesetImage; level.tilesetName = this.level.tilesetName; }
+                const existingImg = this.level?.tilesetImage || this.levels.find(e => e.level.tilesetImage)?.level.tilesetImage;
+                if (existingImg) { level.tilesetImage = existingImg; level.tilesetName = this.level?.tilesetName || 'pics1.png'; }
                 if (fmt === 'graal' || fmt === 'zelda') level._sourceFormat = fmt;
                 const ext = fmt === 'nw' ? '.nw' : `.${fmt}`;
                 this.levels.push({ level, name: `new ${++this.newTabCounter}${ext}`, modified: false });
                 this.currentLevelIndex = this.levels.length - 1;
                 this.level = level;
                 this.addLevelTab(this.currentLevelIndex);
-                if (level.tilesetImage) this.render();
+                if (level.tilesetImage) { this.render(); } else { this.loadDefaultTileset(); }
                 this.updateLevelTabs();
                 this.saveSessionDebounced();
             };
@@ -2907,6 +2913,7 @@ class LevelEditor {
     }
 
     addLevelTab(index) {
+        this._setEditorVisible(true);
         const tabsContainer = document.getElementById('levelTabs');
         const tab = document.createElement('div');
         tab.className = 'tab active';
@@ -3013,28 +3020,37 @@ class LevelEditor {
         box.querySelector('#_cfmYes').onclick = () => { box.remove(); fn(); };
     }
 
+    _setEditorVisible(visible) {
+        const ids = ['levelToolbar', 'levelArea'];
+        ids.forEach(id => { const el = document.getElementById(id); if (el) el.style.visibility = visible ? '' : 'hidden'; });
+        const sb = document.querySelector('.status-bar'); if (sb) sb.style.visibility = visible ? '' : 'hidden';
+        ['btnPlay','btnPlayerSetup'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = !visible; });
+    }
+
     closeLevelTab(index) {
-        if (this.levels.length <= 1) return;
         const name = this.levels[index]?.name || 'this level';
         this._confirm(`Close "${name}"?`, () => {
         this.levels.splice(index, 1);
-        if (this.currentLevelIndex >= this.levels.length) {
-            this.currentLevelIndex = this.levels.length - 1;
+        if (this.levels.length === 0) {
+            this.currentLevelIndex = -1;
+            this.level = null;
+            document.getElementById('levelTabs').innerHTML = '';
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this._setEditorVisible(false);
+            this.saveSession();
+            return;
         }
-        if (this.currentLevelIndex >= 0) {
-            this.level = this.levels[this.currentLevelIndex].level;
-            if (!this.level.tilesetImage) {
-                const donor = this.levels.find(e => e.level.tilesetImage);
-                if (donor) this.level.tilesetImage = donor.level.tilesetImage;
-            }
+        if (this.currentLevelIndex >= this.levels.length) this.currentLevelIndex = this.levels.length - 1;
+        this.level = this.levels[this.currentLevelIndex].level;
+        if (!this.level.tilesetImage) {
+            const donor = this.levels.find(e => e.level.tilesetImage);
+            if (donor) this.level.tilesetImage = donor.level.tilesetImage;
         }
         const tabsContainer = document.getElementById('levelTabs');
         tabsContainer.innerHTML = '';
         this.levels.forEach((_, i) => this.addLevelTab(i));
-        if (this.currentLevelIndex >= 0) {
-            this.updateUI();
-            this.render();
-        }
+        this.updateUI();
+        this.render();
         });
     }
 
@@ -3588,7 +3604,7 @@ class LevelEditor {
         const gfield = (lbl, key) => `<label style="display:flex;align-items:center;gap:6px;"><span style="${_lblStyle}">${lbl}</span><input id="pg_${key}" value="${s.ganis?.[key]||''}" placeholder="${key}.gani" style="${_inpStyle}"><button data-play="${key}" style="padding:2px 8px;cursor:pointer;background:#2a3a2a;color:#7fff7f;border:1px solid #3a6a3a;font-size:11px;flex-shrink:0;">&#9654;</button></label>`;
         const colorLabels = ['Skin','Coat','Sleeves','Shoes','Belt'];
         box.innerHTML = `
-            <div id="_pcTitlebar" style="padding:8px 12px;background:#353535;font-size:13px;display:flex;align-items:center;justify-content:space-between;user-select:none;flex-shrink:0;cursor:grab;">
+            <div id="_pcTitlebar" class="dialog-titlebar" style="padding:8px 12px;background:#353535;font-size:13px;display:flex;align-items:center;justify-content:space-between;user-select:none;flex-shrink:0;cursor:grab;">
                 <span><i class="fas fa-user" style="color:#ffd700;margin-right:6px;"></i>Player Settings</span>
                 <button id="pcClose" style="background:none;border:none;color:#888;font-size:16px;cursor:pointer;line-height:1;">&#10005;</button>
             </div>
@@ -3627,7 +3643,7 @@ class LevelEditor {
                     </div>
                 </div>
             </div>
-            <div style="padding:8px 12px;background:#353535;border-top:1px solid #1a1a1a;display:flex;gap:8px;align-items:center;flex-shrink:0;">
+            <div class="dialog-toolbar" style="padding:8px 12px;background:#353535;border-top:1px solid #1a1a1a;display:flex;gap:8px;align-items:center;flex-shrink:0;">
                 ${btn('pcReset','Reset','margin-right:auto;')}
                 ${btn('pcApply','Apply')}
                 ${btn('pcOk','OK','background:#4472C4;color:#fff;border-color:#3060a0;')}
@@ -4778,6 +4794,7 @@ class LevelEditor {
     }
 
     updateUI() {
+        if (!this.level) return;
         const lw = document.getElementById('levelWidth'); if (lw) lw.value = this.level.width;
         const lh = document.getElementById('levelHeight'); if (lh) lh.value = this.level.height;
         const tn = document.getElementById('tilesetName'); if (tn) tn.value = this.level.tilesetName;
@@ -6140,7 +6157,7 @@ class LevelEditor {
             }).join('') || `<tr><td colspan="7" style="padding:8px;color:#666;font-size:12px;">No links</td></tr>`;
         };
         box.innerHTML = `
-            <div id="elTitlebar" style="padding:8px 12px;background:#353535;font-size:13px;display:flex;align-items:center;gap:8px;user-select:none;flex-shrink:0;">
+            <div id="elTitlebar" class="dialog-titlebar" style="padding:8px 12px;background:#353535;font-size:13px;display:flex;align-items:center;gap:8px;user-select:none;flex-shrink:0;">
                 <i class="fas fa-link" style="display:inline-block;width:16px;height:16px;background-image:url('icons/link.svg');background-size:contain;background-repeat:no-repeat;filter:brightness(0) invert(1);"></i>
                 <span>Edit Links:</span>
             </div>
@@ -6155,7 +6172,7 @@ class LevelEditor {
                     <tbody id="elBody">${buildRows()}</tbody>
                 </table>
             </div>
-            <div style="padding:8px 12px;background:#353535;display:flex;gap:8px;align-items:center;">
+            <div class="dialog-toolbar" style="padding:8px 12px;background:#353535;display:flex;gap:8px;align-items:center;">
                 <button id="elEdit" style="padding:4px 12px;cursor:pointer;background:#4472C4;color:#fff;border:1px solid #3060a0;font-size:12px;">&#x270F; Edit</button>
                 <button id="elDelete" style="padding:4px 12px;cursor:pointer;background:#333;color:#e0e0e0;border:1px solid #555;font-size:12px;">&#x1F5D1; Delete</button>
                 <span style="flex:1;"></span>
@@ -6193,7 +6210,7 @@ class LevelEditor {
             }).join('') || `<tr><td colspan="3" style="padding:8px;color:#666;font-size:12px;">No signs</td></tr>`;
         };
         box.innerHTML = `
-            <div id="esTitlebar" style="padding:8px 12px;background:#353535;font-size:13px;display:flex;align-items:center;gap:8px;user-select:none;flex-shrink:0;">
+            <div id="esTitlebar" class="dialog-titlebar" style="padding:8px 12px;background:#353535;font-size:13px;display:flex;align-items:center;gap:8px;user-select:none;flex-shrink:0;">
                 <i class="fas fa-sign" style="display:inline-block;width:16px;height:16px;background-image:url('icons/sign.svg');background-size:contain;background-repeat:no-repeat;filter:brightness(0) invert(1);"></i>
                 <span>Edit Signs:</span>
             </div>
@@ -6205,7 +6222,7 @@ class LevelEditor {
                     <tbody id="esBody">${buildRows()}</tbody>
                 </table>
             </div>
-            <div style="padding:8px 12px;background:#353535;display:flex;gap:8px;align-items:center;">
+            <div class="dialog-toolbar" style="padding:8px 12px;background:#353535;display:flex;gap:8px;align-items:center;">
                 <button id="esCreate" style="padding:4px 12px;cursor:pointer;background:#4472C4;color:#fff;border:1px solid #3060a0;font-size:12px;">Create</button>
                 <span style="font-size:12px;color:#aaa;">X:</span>
                 <input id="esX" type="number" value="0" style="width:50px;background:#1a1a1a;color:#e0e0e0;border:1px solid #555;padding:2px 4px;font-size:12px;">
@@ -6213,7 +6230,7 @@ class LevelEditor {
                 <input id="esY" type="number" value="0" style="width:50px;background:#1a1a1a;color:#e0e0e0;border:1px solid #555;padding:2px 4px;font-size:12px;">
                 <span style="flex:1;"></span>
             </div>
-            <div style="padding:8px 12px;background:#353535;border-top:1px solid #1a1a1a;display:flex;gap:8px;align-items:center;">
+            <div class="dialog-toolbar" style="padding:8px 12px;background:#353535;border-top:1px solid #1a1a1a;display:flex;gap:8px;align-items:center;">
                 <button id="esDelete" style="padding:4px 12px;cursor:pointer;background:#333;color:#e0e0e0;border:1px solid #555;font-size:12px;">&#x1F5D1; Delete</button>
                 <span style="flex:1;"></span>
                 <button id="esOk" style="padding:4px 14px;cursor:pointer;background:#444;color:#e0e0e0;border:1px solid #555;font-size:12px;">Ok</button>
@@ -6662,12 +6679,45 @@ class LevelEditor {
             this.setTool('draw');
         };
 
+        document.getElementById('btnExportTileObjects').onclick = () => {
+            const data = {};
+            for (const [g, objs] of Object.entries(this.tileObjects)) {
+                const filtered = {};
+                for (const [n, obj] of Object.entries(objs)) { if (!this._builtinKeys.has(`${g}/${n}`)) filtered[n] = obj; }
+                if (Object.keys(filtered).length) data[g] = filtered;
+            }
+            this._downloadFile('tile-objects.json', JSON.stringify(data, null, 2), 'application/json');
+        };
+
+        const importInput = document.getElementById('tileObjectsImportInput');
+        document.getElementById('btnImportTileObjects').onclick = () => importInput.click();
+        importInput.onchange = e => {
+            const file = e.target.files[0]; if (!file) return;
+            const r = new FileReader();
+            r.onload = ev => {
+                try {
+                    const imported = JSON.parse(ev.target.result);
+                    for (const [g, objs] of Object.entries(imported)) {
+                        if (!this.tileObjects[g]) this.tileObjects[g] = {};
+                        for (const [n, obj] of Object.entries(objs)) this.tileObjects[g][n] = obj;
+                    }
+                    this._saveTileObjects();
+                    fillGroups();
+                } catch(err) { console.error('Import failed:', err); }
+            };
+            r.readAsText(file);
+            importInput.value = '';
+        };
+
         fillGroups();
     }
 
     applyColorScheme(scheme) {
         const oldStyle = document.getElementById('colorSchemeStyle');
         if (oldStyle) oldStyle.remove();
+        const tag = document.getElementById('levelEditorCustomUserCSS');
+        if (tag) tag.textContent = '';
+        localStorage.removeItem('levelEditorCustomCSS');
         const schemes = {
             'fusion-light': { bg:'#f5f5f5', panel:'#ffffff', border:'#d0d0d0', text:'#1a1a1a', hover:'#e8e8e8', button:'#ffffff', buttonText:'#1a1a1a', buttonHover:'#f0f0f0', tabActive:'#ffffff', inputBg:'#ffffff' },
             'fusion-dark':  { bg:'#1e1e1e', panel:'#2d2d2d', border:'#0f0f0f', text:'#e8e8e8', hover:'#3d3d3d' },
@@ -6792,8 +6842,8 @@ class LevelEditor {
             .settings-group div[style*="background:#1e1e1e"] { background: ${c.bg} !important; border-color: ${c.border} !important; }
             .settings-group thead tr { background: ${c.hover} !important; }
             .settings-group thead th { color: ${c.text} !important; opacity: 0.7; }
-            #btnNewTileObjectGroup, #btnDeleteTileObjectGroup, #btnNewTileObject, #btnDeleteTileObject { background: ${bBg} !important; color: ${bTxt} !important; border-color: ${c.border} !important; }
-            #btnNewTileObjectGroup:hover, #btnDeleteTileObjectGroup:hover, #btnNewTileObject:hover, #btnDeleteTileObject:hover { background: ${bHov} !important; }
+            #btnNewTileObjectGroup, #btnDeleteTileObjectGroup, #btnNewTileObject, #btnDeleteTileObject, #btnExportTileObjects, #btnImportTileObjects { background: ${bBg} !important; color: ${bTxt} !important; border-color: ${c.border} !important; }
+            #btnNewTileObjectGroup:hover, #btnDeleteTileObjectGroup:hover, #btnNewTileObject:hover, #btnDeleteTileObject:hover, #btnExportTileObjects:hover, #btnImportTileObjects:hover { background: ${bHov} !important; }
             #tileObjectGroup, #tileObjectName { background: ${inp} !important; color: ${c.text} !important; border-color: ${c.border} !important; }
             #tileObjectPreview { border-color: ${c.border} !important; background: ${c.bg} !important; }
             .tab-panel { background: ${c.bg} !important; border-color: ${c.border} !important; }
@@ -6886,7 +6936,91 @@ class LevelEditor {
         drop.querySelectorAll('.color-scheme-item').forEach(item => {
             item.onclick = (e) => { e.stopPropagation(); this.applyColorScheme(item.dataset.scheme); drop.style.display = 'none'; };
         });
+        const btnCustomCSS = document.getElementById('btnCustomCSS');
+        if (btnCustomCSS) {
+            btnCustomCSS.onmouseenter = () => { btnCustomCSS.style.background = '#252525'; };
+            btnCustomCSS.onmouseleave = () => { btnCustomCSS.style.background = ''; };
+            btnCustomCSS.onclick = e => { e.stopPropagation(); drop.style.display = 'none'; this.openCustomCSSDialog(); };
+        }
         document.addEventListener('click', (e) => { if (!btn.contains(e.target) && !drop.contains(e.target)) drop.style.display = 'none'; });
+        this.initCustomCSS();
+    }
+
+    initCustomCSS() {
+        const saved = localStorage.getItem('levelEditorCustomCSS');
+        if (!saved) return;
+        let tag = document.getElementById('levelEditorCustomUserCSS');
+        if (!tag) { tag = document.createElement('style'); tag.id = 'levelEditorCustomUserCSS'; document.head.appendChild(tag); }
+        tag.textContent = saved;
+    }
+
+    openCustomCSSDialog() {
+        const current = (document.getElementById('levelEditorCustomUserCSS') || {}).textContent || '';
+        const overlay = document.createElement('div');
+        overlay.className = 'dialog-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10000;display:flex;justify-content:center;align-items:center;';
+        overlay.innerHTML = `
+            <div class="dialog-content" style="background:#2b2b2b;border:2px solid #1a1a1a;width:660px;max-width:92vw;height:80vh;display:flex;flex-direction:column;box-shadow:0 4px 16px rgba(0,0,0,0.9);">
+                <div class="dialog-titlebar" style="background:#1e1e1e;border-bottom:2px solid #0a0a0a;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+                    <span style="display:flex;align-items:center;gap:8px;"><i class="fas fa-palette" style="flex-shrink:0;display:block;"></i><span style="font-family:'chevyray',monospace;font-size:13px;color:#c0c0c0;user-select:none;line-height:16px;">Custom CSS</span></span>
+                    <span style="font-family:'chevyray',monospace;font-size:11px;color:#666;user-select:none;">injected after all themes — overrides anything</span>
+                </div>
+                <div id="levelCssEditorContainer" style="flex:1;min-height:0;position:relative;overflow:hidden;"></div>
+                <div style="padding:10px 14px;display:flex;gap:8px;align-items:center;border-top:1px solid #0a0a0a;flex-shrink:0;">
+                    <button id="levelCssApply" style="background:#1a6b1a;color:#fff;border:1px solid #0a0a0a;border-top:1px solid #2a8a2a;padding:7px 14px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;">Apply</button>
+                    <button id="levelCssImport" style="background:#1a1a1a;color:#e0e0e0;border:1px solid #0a0a0a;border-top:1px solid #404040;padding:7px 14px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;">Import</button>
+                    <button id="levelCssExport" style="background:#1a1a1a;color:#e0e0e0;border:1px solid #0a0a0a;border-top:1px solid #404040;padding:7px 14px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;">Export</button>
+                    <a id="levelCssExample" href="example-theme.css" download style="background:#1a1a1a;color:#4a9eff;border:1px solid #0a0a0a;border-top:1px solid #404040;padding:7px 14px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;text-decoration:none;">Example</a>
+                    <div style="flex:1;"></div>
+                    <button id="levelCssClear" style="background:#6b1a1a;color:#fff;border:1px solid #0a0a0a;border-top:1px solid #8a2a2a;padding:7px 14px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;">Clear</button>
+                    <button id="levelCssClose" style="background:#1a1a1a;color:#e0e0e0;border:1px solid #0a0a0a;border-top:1px solid #404040;padding:7px 14px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;">Close</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        const container = overlay.querySelector('#levelCssEditorContainer');
+        let ed = null, fb = null;
+        const getValue = () => ed ? ed.getValue() : (fb ? fb.value : '');
+        const setValue = v => { if (ed) ed.setValue(v); else if (fb) fb.value = v; };
+        const mkFallback = () => {
+            fb = document.createElement('textarea');
+            fb.spellcheck = false; fb.value = current;
+            fb.style.cssText = 'width:100%;height:100%;background:#1a1a1a;color:#e0e0e0;border:none;padding:12px;font-family:monospace;font-size:12px;line-height:1.5;resize:none;outline:none;box-sizing:border-box;';
+            container.appendChild(fb);
+        };
+        if (window.monacoReady) {
+            window.monacoReady.then(mc => {
+                if (!mc) { mkFallback(); return; }
+                const monacoTheme = getComputedStyle(document.documentElement).getPropertyValue('--monaco-theme').trim() || 'graal-active';
+                ed = mc.editor.create(container, { value: current, language: 'css', theme: monacoTheme, minimap:{enabled:false}, scrollBeyondLastLine:false, fontSize:12, fontFamily:'monospace', automaticLayout:true });
+            });
+        } else { mkFallback(); }
+        const applyCSS = () => {
+            const css = getValue();
+            let tag = document.getElementById('levelEditorCustomUserCSS');
+            if (!tag) { tag = document.createElement('style'); tag.id = 'levelEditorCustomUserCSS'; document.head.appendChild(tag); }
+            tag.textContent = css;
+            localStorage.setItem('levelEditorCustomCSS', css);
+        };
+        overlay.querySelector('#levelCssApply').onclick = applyCSS;
+        overlay.querySelector('#levelCssClose').onclick = () => { if (ed) ed.dispose(); document.body.removeChild(overlay); };
+        overlay.onclick = e => { if (e.target === overlay) { if (ed) ed.dispose(); document.body.removeChild(overlay); } };
+        overlay.querySelector('#levelCssClear').onclick = () => {
+            setValue('');
+            const tag = document.getElementById('levelEditorCustomUserCSS');
+            if (tag) tag.textContent = '';
+            localStorage.removeItem('levelEditorCustomCSS');
+        };
+        overlay.querySelector('#levelCssImport').onclick = () => {
+            const inp = document.createElement('input');
+            inp.type = 'file'; inp.accept = '.css,text/css';
+            inp.onchange = e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { setValue(ev.target.result); applyCSS(); }; r.readAsText(f); };
+            inp.click();
+        };
+        overlay.querySelector('#levelCssExport').onclick = () => {
+            const blob = new Blob([getValue()], {type:'text/css'});
+            const a = Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download:'level-custom-theme.css'});
+            a.click(); URL.revokeObjectURL(a.href);
+        };
     }
 
     _renderTileObjectPreview() {

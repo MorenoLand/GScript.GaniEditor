@@ -1,6 +1,31 @@
 [
   {
-    "version": "0.1.34",
+    "version": "1.0.92",
+    "date": "2026-04-06",
+    "tag": "Level Editor",
+    "changes": [
+      "Tile Objects — Export button downloads all user-created groups as a JSON file",
+      "Tile Objects — Import button merges groups from a JSON file into the current library",
+      "Theme menu — Custom CSS option added (import, export, apply, clear) with Monaco editor and live injection",
+      "Custom CSS persisted to localStorage and restored on startup"
+    ]
+  },
+  {
+    "version": "0.1.35",
+    "date": "2026-04-06",
+    "tag": "GraalSuite",
+    "changes": [
+      "Setshape2/setimgpart Editor — dialog title renamed to Setshape2/setimgpart Editor",
+      "Setshape2/setimgpart Editor — Cut button renamed to Setimgpart",
+      "Setshape2/setimgpart Editor — output areas now use syntax-highlighted pre elements (keywords, numbers, strings colored)",
+      "Setshape2/setimgpart Editor — Ctrl+Z/Y undo/redo (50-step history) for tile paint, clear, and import operations",
+      "About dialog — draggable by titlebar",
+      "example-theme.css — covers both editors; level editor classes, Setshape2, and Gmap Generator dialogs now themeable",
+      "Setshape2 and Gmap Generator dialogs — dialog-content and dialog-titlebar classes added for custom CSS targeting"
+    ]
+  },
+  {
+    "version": "1.0.91",
     "date": "2026-04-06",
     "tag": "Level Editor",
     "changes": [
@@ -40,7 +65,7 @@
     "date": "2026-04-01",
     "tag": "Gani Editor",
     "changes": [
-      "Tauri: native file dialogs, workspace indexing, lazy image loading from disk (no RAM preload), 13MB exe",
+      "Tauri: native file dialogs, workspace indexing, lazy image loading from disk (no RAM preload)",
       "Tauri: FILENAMECACHE.txt — workspace file index persisted to disk (classic Graal format: relative/path,crc32), no rescan on restart",
       "Tauri: workspace scan streams results progressively via event-based chunks, UI stays responsive during indexing",
       "PeerJS P2P collaboration — real-time multi-user editing with cursor sync, sprite changes, and frame updates"
