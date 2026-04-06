@@ -1,5 +1,13 @@
 [
   {
+    "version": "0.1.38",
+    "date": "2026-04-06",
+    "tag": "GraalSuite",
+    "changes": [
+      "Color scheme and custom CSS now shared globally between both editors"
+    ]
+  },
+  {
     "version": "1.0.93",
     "date": "2026-04-06",
     "tag": "Level Editor",
