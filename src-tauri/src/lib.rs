@@ -209,17 +209,26 @@ fn register_file_associations() -> Result<String, String> {
 }
 
 #[tauri::command]
-async fn check_for_update(app: tauri::AppHandle) -> Result<String, String> {
+async fn check_for_update(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    match updater.check().await {
+        Ok(Some(update)) => Ok(Some(update.version.clone())),
+        Ok(None) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+async fn do_update(app: tauri::AppHandle) -> Result<String, String> {
     use tauri_plugin_updater::UpdaterExt;
     let updater = app.updater().map_err(|e| e.to_string())?;
     match updater.check().await {
         Ok(Some(update)) => {
-            let version = update.version.clone();
             let _ = update.download_and_install(|_, _| {}, || {}).await;
             app.restart();
-            Ok(version)
         }
-        Ok(None) => Err("up_to_date".into()),
+        Ok(None) => Err("no_update_available".into()),
         Err(e) => Err(e.to_string()),
     }
 }
@@ -241,7 +250,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![scan_workspace, resolve_path, load_workspace_cache, get_open_file_arg, register_file_associations, check_for_update])
+        .invoke_handler(tauri::generate_handler![scan_workspace, resolve_path, load_workspace_cache, get_open_file_arg, register_file_associations, check_for_update, do_update])
         .setup(|app| {
             if cfg!(debug_assertions) { app.handle().plugin(tauri_plugin_log::Builder::default().level(log::LevelFilter::Info).build())?; }
             if let Some(win) = app.get_webview_window("main") { let _ = win.show(); let _ = win.set_focus(); }
@@ -249,8 +258,7 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 if let Ok(updater) = handle.updater() {
                     if let Ok(Some(update)) = updater.check().await {
-                        let _ = update.download_and_install(|_, _| {}, || {}).await;
-                        handle.restart();
+                        if let Some(w) = handle.get_webview_window("main") { let _ = w.emit("update-available", update.version.clone()); }
                     }
                 }
             });

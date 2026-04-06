@@ -875,37 +875,60 @@ class LevelEditor {
                 btn.addEventListener('click', async () => {
                     if (document.getElementById('_updateDlg')) return;
                     btn.disabled = true;
-                    const showUpdateDlg = (msg, isError = false) => {
-                        const existing = document.getElementById('_updateDlg');
-                        if (existing) existing.remove();
-                        const box = document.createElement('div');
-                        box.id = '_updateDlg';
-                        box.style.cssText = 'position:fixed;top:80px;left:calc(50% - 180px);width:360px;z-index:10000;display:flex;flex-direction:column;background:#2b2b2b;border:2px solid #1a1a1a;';
-                        box.classList.add('ed-dialog-box');
-                        box.innerHTML = `
-                            <div style="padding:8px 12px;font-size:13px;display:flex;align-items:center;justify-content:space-between;user-select:none;background:#353535;flex-shrink:0;" class="_udlg-title">
-                                <span>Check for Updates</span>
-                                <button id="_updateDlgClose" style="background:none;border:none;cursor:pointer;font-size:16px;line-height:1;">×</button>
-                            </div>
-                            <div style="padding:16px;font-size:13px;${isError?'color:#ff6b6b;':''}font-family:chevyray,monospace;">${msg}</div>
-                        `;
-                        document.body.appendChild(box);
-                        box.querySelector('#_updateDlgClose').addEventListener('click', () => { box.remove(); btn.disabled = false; });
-                    };
-                    showUpdateDlg('Checking for updates...');
-                    _tauri.core.invoke('check_for_update').then(() => {
-                        showUpdateDlg('Update found! Downloading and installing...');
-                    }).catch(e => {
-                        if (e === 'up_to_date') showUpdateDlg('You\'re up to date!');
-                        else showUpdateDlg(`Update check failed:\n${e}`, true);
-                        btn.disabled = false;
-                    });
+                    this._showUpdateCheckDialog(btn);
                 });
             });
+            if (_isTauri) {
+                _tauri.event.listen('update-available', (event) => {
+                    if (document.getElementById('_updateDlg')) return;
+                    this._showUpdatePrompt(event.payload);
+                }).catch(() => {});
+            }
         }
         document.getElementById('btnSettings')?.addEventListener('click', () => this.openSettingsDialog());
         document.getElementById('btnPlay')?.addEventListener('click', () => this.togglePlayMode());
         document.getElementById('btnPlayerSetup')?.addEventListener('click', () => this.openPlayerCustomizeDialog());
+    }
+
+    _showUpdateCheckDialog(btn) {
+        const existing = document.getElementById('_updateDlg'); if (existing) existing.remove();
+        const box = document.createElement('div'); box.id = '_updateDlg'; box.style.cssText = 'position:fixed;top:80px;left:calc(50% - 180px);width:360px;z-index:10000;display:flex;flex-direction:column;background:#2b2b2b;border:2px solid #1a1a1a;'; box.classList.add('ed-dialog-box');
+        const _bs = 'background:#2b2b2b;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;color:#e0e0e0;padding:6px 12px;cursor:pointer;font-family:chevyray,monospace;font-size:12px;';
+        box.innerHTML = `<div style="padding:8px 12px;font-size:13px;display:flex;align-items:center;justify-content:space-between;user-select:none;background:#353535;flex-shrink:0;" class="_udlg-title"><span>Check for Updates</span><button id="_updateDlgClose" style="background:none;border:none;cursor:pointer;font-size:16px;line-height:1;">×</button></div><div id="_updateDlgBody" style="padding:16px;font-size:13px;font-family:chevyray,monospace;">Checking for updates...</div>`;
+        document.body.appendChild(box);
+        box.querySelector('#_updateDlgClose').addEventListener('click', () => { box.remove(); btn.disabled = false; });
+        _tauri.core.invoke('check_for_update').then(result => {
+            if (result) this._showUpdatePrompt(result, btn);
+            else { document.getElementById('_updateDlgBody').textContent = 'You\'re up to date!'; btn.disabled = false; }
+        }).catch(e => { document.getElementById('_updateDlgBody').innerHTML = `<span style="color:#ff6b6b;">Update check failed:\n${e}</span>`; btn.disabled = false; });
+    }
+
+    _showUpdatePrompt(version, btn = null) {
+        if (localStorage.getItem('graalsuite_skipUpdate') === version) { if (btn) btn.disabled = false; return; }
+        const existing = document.getElementById('_updateDlg'); if (existing) existing.remove();
+        const box = document.createElement('div'); box.id = '_updateDlg'; box.style.cssText = 'position:fixed;top:80px;left:calc(50% - 180px);width:360px;z-index:10000;display:flex;flex-direction:column;background:#2b2b2b;border:2px solid #1a1a1a;'; box.classList.add('ed-dialog-box');
+        const _bs = 'background:#2b2b2b;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;color:#e0e0e0;padding:6px 12px;cursor:pointer;font-family:chevyray,monospace;font-size:12px;';
+        box.innerHTML = `
+            <div style="padding:8px 12px;font-size:13px;display:flex;align-items:center;justify-content:space-between;user-select:none;background:#353535;flex-shrink:0;" class="_udlg-title"><span>Update Available</span><button id="_updateDlgClose" style="background:none;border:none;cursor:pointer;font-size:16px;line-height:1;">×</button></div>
+            <div style="padding:16px;font-size:13px;font-family:chevyray,monospace;">
+                <div style="margin-bottom:14px;">GraalSuite <span style="color:#4a9eff;">${version}</span> is available.</div>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:14px;font-size:12px;opacity:0.7;"><input type="checkbox" id="_updateSkipThis" style="accent-color:#4a9eff;"> Skip this version</label>
+                <div style="display:flex;gap:8px;justify-content:flex-end;">
+                    <button id="_updateLater" style="${_bs}">Later</button>
+                    <button id="_updateNow" style="${_bs};background:#4472C4;color:#fff;border-color:#3060a0;">Update Now</button>
+                </div>
+            </div>`;
+        document.body.appendChild(box);
+        const close = (skipThis) => {
+            if (skipThis) localStorage.setItem('graalsuite_skipUpdate', version); else localStorage.removeItem('graalsuite_skipUpdate');
+            box.remove(); if (btn) btn.disabled = false;
+        };
+        box.querySelector('#_updateDlgClose').addEventListener('click', () => close(false));
+        box.querySelector('#_updateLater').addEventListener('click', () => close(document.getElementById('_updateSkipThis').checked));
+        box.querySelector('#_updateNow').addEventListener('click', () => {
+            document.getElementById('_updateDlgBody') || (box.querySelector('div:nth-child(2)').innerHTML = '<div style="text-align:center;padding:8px;">Downloading and installing...</div>');
+            _tauri.core.invoke('do_update').catch(e => { box.querySelector('div:nth-child(2)').innerHTML = `<span style="color:#ff6b6b;">Update failed:\n${e}</span>`; });
+        });
     }
 
     handleMouseDown(e) {
@@ -6881,6 +6904,7 @@ class LevelEditor {
             #elTitlebar, #esTitlebar, #signTitlebar, #lkTitlebar, #chTitlebar, #bdTitlebar { background: ${c.hover} !important; color: ${c.text} !important; }
             #tauriBar { background: ${c.panel} !important; border-color: ${c.border} !important; }
             #tauriBar button { background: transparent !important; color: ${c.text} !important; border-color: transparent !important; }
+            input[type="checkbox"] { accent-color: #4a9eff !important; }
             #tauriBar button:hover { background: ${c.hover} !important; }
             #tauriBar .tb-title span { color: ${c.text} !important; }
             .tool-button.active { background: #4a9eff !important; color: #fff !important; border-color: #2a7eff !important; }
