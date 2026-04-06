@@ -45,8 +45,8 @@ class GmapGenerator {
         dlg.id = '_gmgDialog';
         dlg.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9000;pointer-events:none;';
         dlg.innerHTML = `
-<div id="_gmgInner" style="background:#252525;border:1px solid #3a3a3a;display:flex;flex-direction:column;width:420px;pointer-events:all;box-shadow:0 8px 32px rgba(0,0,0,0.8);">
-  <div id="_gmgDrag" style="display:flex;align-items:center;background:#2a2a2a;border-bottom:1px solid #111;padding:6px 10px;gap:8px;cursor:move;">
+<div id="_gmgInner" class="dialog-content" style="background:#252525;border:1px solid #3a3a3a;display:flex;flex-direction:column;width:420px;pointer-events:all;box-shadow:0 8px 32px rgba(0,0,0,0.8);">
+  <div id="_gmgDrag" class="dialog-titlebar" style="display:flex;align-items:center;background:#2a2a2a;border-bottom:1px solid #111;padding:6px 10px;gap:8px;cursor:move;">
     <span style="color:#ddd;font-family:chevyray,monospace;font-size:13px;flex:1;display:flex;align-items:center;gap:6px;line-height:1;">${mapIcon}Gmap Generator</span>
     <button id="_gmgClose" style="${btnStyle}padding:2px 8px;">✕</button>
   </div>
