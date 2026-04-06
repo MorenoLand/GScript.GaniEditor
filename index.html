@@ -12,7 +12,6 @@
     if (_isTauri) {
         require.config({ paths: { vs: 'monaco-editor/min/vs' } });
         window.addEventListener('contextmenu', e => e.preventDefault());
-        document.addEventListener('DOMContentLoaded', () => { document.querySelectorAll('#btnGmapGen,#switchBtn,#btnSetshape2').forEach(el => el.style.display = 'none'); });
     } else {
         require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs' } });
     }
@@ -32,12 +31,28 @@
     <button id="tbShapesBtn" title="Setshape2 Editor" onclick="typeof SetshapeEditor!=='undefined'&&SetshapeEditor.open()"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACbUlEQVQ4y52P20uTcRzGn9972MEdHBvOw1JZZk4dTjyXhGEGUgkWFJH1P3QTQXgVne6UThCEFxVBYWVgWCCBQ6IM0cBkouLxTbc5NJzv67b39/66SG2pQfXcfPnC83y/n4fgP1RZd8JAeJ4nIDH+X8OFpQdyKE2063T6S5QmwgIAVNUdE0yWVCMhAGMbTgYQAjAAK5FwS2Zm5sGhgf6LvCC0rq4s3fBV13Z+HRwAceXuE1PtzisAvAD5/R0BwBisNkfxKbfsGdHcseHRQF35oYbHfW9ePZweH2kTIqEFc15Rme/chTOKOz+/eiMFgDCAEQBsKbzk6H/WQWrNU3pDZUW3v7fnqiJH72mUMmHzGdVojijq8vCrAQAgHoth/EMv0uk3+OfNpMwxnDbrSi9YNJrIwuwk45KJ2bYZi63jXVcXrMHPWLSWYH/jWfi/u+LrTGyKhCQOAITtlTcnpRSTYxNw5XkgGS1objyCGSmMZUXt9fe8OOnM2KPuOJAsjufg8RZCmplDia8IgigCAHhB0ADEQ4vzP327hdkGB8fxyHbnQhBFKLKMdUUBRzh9fVOLbtO7KwHZtklzEtpv3eyU12QZYLA50i+X1tRfH/74XtuVIJkkGo3iwe07jxi0+0Vl5a8bmk+vBr586jNZbW1bBIQQHiA81bQdB1SVQlW1YNXho63dTzuOuwuK07wVNXaAtwOAoFFKOY7kTEwHfRPTwR0UaiIBg8nsefv8ybW9Hm+9McWUPTo0GLLY7IGtunpDSkaK2VL4pyrOrNzzdmeWh+O4OGOANDX2UllbvRtamGUEfyczCDEk7ctgjALAD3gS6nZ20OQgAAAAAElFTkSuQmCC" width="14" height="14" style="vertical-align:middle;"> Setshape2</button>
     <button id="tbGmapBtn" title="Gmap Generator" onclick="typeof GmapGenerator!=='undefined'&&GmapGenerator.open()" style="border-left:none;display:inline-flex;align-items:center;gap:4px;"><img src="icons/gmapgen.ico" width="14" height="14" style="image-rendering:pixelated;vertical-align:middle;"> Gmap</button>
     <button id="tbSwitchBtn" title="Switch Editor"><svg width="12" height="10" viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="1.2"><polyline points="8,1 11,4 8,7"/><line x1="1" y1="4" x2="11" y2="4"/><polyline points="4,3 1,6 4,9"/><line x1="11" y1="6" x2="1" y2="6"/></svg> Switch</button>
+    <button id="tbAboutBtn" title="About GraalSuite" style="border-left:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M12 23a11 11 0 1 0 0-22 11 11 0 0 0 0 22Zm-.28-16c-.98 0-1.81.47-2.27 1.14A1 1 0 1 1 7.8 7.01 4.73 4.73 0 0 1 11.72 5c2.5 0 4.65 1.88 4.65 4.38 0 2.1-1.54 3.77-3.52 4.24l.14 1a1 1 0 0 1-1.98.27l-.28-2a1 1 0 0 1 .99-1.14c1.54 0 2.65-1.14 2.65-2.38 0-1.23-1.1-2.37-2.65-2.37ZM13 17.88a1.13 1.13 0 1 1-2.25 0 1.13 1.13 0 0 1 2.25 0Z" clip-rule="evenodd"/></svg></button>
     <button class="tb-winbtn" id="tbMin" title="Minimize"><svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg></button>
     <button class="tb-winbtn" id="tbMax" title="Maximize"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x=".5" y=".5" width="9" height="9" stroke="currentColor"/></svg></button>
     <button class="tb-winbtn tb-close" id="tbClose" title="Close"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.2"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.2"/></svg></button>
   </div>
 </div>
 <div id="editorContainer"></div>
+    <div id="infoDialog" class="dialog-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:transparent;z-index:10000;justify-content:center;align-items:center;">
+    <div class="dialog-content" style="background:#2b2b2b;border:2px solid #1a1a1a;width:600px;max-width:92vw;height:420px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 4px 16px rgba(0,0,0,0.9);">
+        <div class="dialog-titlebar" style="background:#1e1e1e;border-bottom:2px solid #0a0a0a;display:flex;align-items:stretch;">
+            <div style="display:flex;align-items:center;padding:10px 14px;gap:8px;flex:1;"><img src="favicon.ico" class="titlebar-logo" style="width:18px;height:18px;image-rendering:pixelated;"><span style="font-family:'chevyray',monospace;font-size:13px;color:#c0c0c0;user-select:none;">GraalSuite</span></div>
+            <div style="display:flex;align-items:stretch;">
+                <button class="info-tab-btn" data-tab="about" style="background:transparent;border:none;border-left:1px solid #0a0a0a;padding:10px 16px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;color:#888;user-select:none;">About</button>
+                <button class="info-tab-btn" data-tab="changelog" style="background:transparent;border:none;border-left:1px solid #0a0a0a;padding:10px 16px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;color:#888;user-select:none;">Changelog</button>
+            </div>
+        </div>
+        <div id="infoContent" style="flex:1;overflow-y:auto;padding:20px;font-family:'chevyray',monospace;font-size:12px;color:#e0e0e0;line-height:1.6;user-select:none;"></div>
+        <div style="border-top:1px solid #0a0a0a;padding:12px 16px;display:flex;justify-content:flex-end;">
+            <button id="infoClose" style="background:#1a1a1a;color:#ffffff;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;padding:8px 16px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;">Close</button>
+        </div>
+    </div>
+</div>
 <script>
 (function() {
     const _isTauri = !!window.__TAURI__;
@@ -45,12 +60,40 @@
     const host = location.hostname;
     let _currentApp = null;
 
+    let _changelogData = null;
+    window.openInfoDialog = function(tab) {
+        tab = tab || 'about';
+        const d = document.getElementById('infoDialog');
+        if (!d) return;
+        d.style.display = 'flex';
+        document.querySelectorAll('.info-tab-btn').forEach(b => { b.style.color = b.dataset.tab === tab ? '#4a9eff' : '#888'; b.style.background = b.dataset.tab === tab ? '#252525' : 'transparent'; });
+        const c = document.getElementById('infoContent');
+        if (!c) return;
+        if (tab === 'about') {
+            if (!c._aboutLoaded) { c._aboutLoaded = true; c._aboutHTML = '<p style="margin:0 0 12px 0;">A web-based suite of tools for Graal Online development — includes a .gani animation editor, .nw/.graal/.zelda level editor, Gmap Generator, and Setshape2 editor.</p><p style="margin:0 0 12px 0;">Part of Preagonal/OpenGraal &mdash; preserving Graal for future generations.</p><p style="margin:0 0 12px 0;border-top:1px solid #0a0a0a;padding-top:12px;font-size:11px;color:#888;"><strong>Credits:</strong><br>Original C++ TilesEditor by <a href="https://www.xing.com/profile/Stefan_Knorr9" target="_blank" style="color:#4a9eff;text-decoration:none;">Stefan Knorr</a><br>Modern C++ TilesEditor by <a href="https://github.com/lukegrahamSydney/TilesEditor" target="_blank" style="color:#4a9eff;text-decoration:none;">39ster/luke graham</a><br>GraalSuite by <a href="https://github.com/denveous" target="_blank" style="color:#4a9eff;text-decoration:none;">denveous</a></p>'; }
+            c.innerHTML = c._aboutHTML;
+        } else if (tab === 'changelog') {
+            const _tagColors = {'GraalSuite':'#c792ea','Level Editor':'#4a9eff','Gani Editor':'#56d364','Gmap Generator':'#ffa657','Setshape2':'#ff7b72'};
+            function _render() { c.innerHTML = _changelogData.map(e => `<div style="margin-bottom:20px;"><div style="font-size:13px;color:#569cd6;margin-bottom:8px;border-bottom:1px solid #3a3a3a;padding-bottom:6px;">v${e.version} <span style="color:${_tagColors[e.tag]||'#888'};font-size:11px;">(${e.tag})</span> <span style="color:#666;font-size:11px;">${e.date}</span></div><ul style="margin:0;padding-left:20px;color:#c0c0c0;">${e.changes.map(ch=>`<li style="margin-bottom:4px;">${ch}</li>`).join("")}</ul></div>`).join(""); }
+            if (_changelogData) { _render(); return; }
+            c.innerHTML = '<div style="color:#888;">Loading...</div>';
+            fetch("changelog.json").then(r=>r.json()).then(data=>{ _changelogData=data; _render(); }).catch(()=>{ c.innerHTML='<div style="color:#888;">Failed to load changelog.</div>'; });
+        }
+    };
+    document.addEventListener('DOMContentLoaded', () => {
+        const infoClose = document.getElementById('infoClose');
+        const infoDialog = document.getElementById('infoDialog');
+        if (infoClose) infoClose.onclick = () => { infoDialog.style.display = 'none'; };
+        if (infoDialog) { infoDialog.onclick = e => { if (e.target === infoDialog) infoDialog.style.display = 'none'; }; document.querySelectorAll('.info-tab-btn').forEach(btn => { btn.onclick = () => window.openInfoDialog(btn.dataset.tab); }); }
+    });
+
     if (_isTauri) {
         document.body.classList.add('tauri-app');
         const _w = window.__TAURI__.window.getCurrentWindow();
         document.getElementById('tbMin').onclick = () => _w.minimize();
         document.getElementById('tbMax').onclick = () => _w.toggleMaximize();
         document.getElementById('tbClose').onclick = () => _w.close();
+        document.getElementById('tbAboutBtn').onclick = () => window.openInfoDialog('about');
     }
 
     function detectApp() {
@@ -316,6 +359,7 @@
             <div style="width:1px;background:#1a1a1a;margin:0 4px;"></div>
             <button title="Settings — configure grid, playback, selection, and editor options" id="btnSettings"><i class="fas fa-cog"></i></button>
             <button title="About / Changelog (F1)" id="btnAbout"><i class="fas fa-info-circle"></i></button>
+            <button class="btn-check-update" title="Check for Updates" style="display:none;"><svg width="12" height="12" viewBox="0 0 512 512" fill="currentColor"><path d="M105.1 202.6c7.7-21.8 20.2-42.3 37.8-59.8c62.5-62.5 163.8-62.5 226.3 0L386.3 160H352c-17.7 0-32 14.3-32 32s14.3 32 32 32H463.5c0 0 0 0 0 0h.4c17.7 0 32-14.3 32-32V80c0-17.7-14.3-32-32-32s-32 14.3-32 32v35.2L414.4 97.6c-87.5-87.5-229.3-87.5-316.8 0C73.2 122 55.6 150.7 44.8 181.4c-5.9 16.7 2.9 34.9 19.5 40.8s34.9-2.9 40.8-19.5zM39 289.3c-5 1.5-9.8 4.2-13.7 8.2c-4 4-6.7 8.8-8.1 14c-.3 1.2-.6 2.5-.8 3.8c-.3 1.7-.4 3.4-.4 5.1V432c0 17.7 14.3 32 32 32s32-14.3 32-32V396.9l17.6 17.5 0 0c87.5 87.4 229.3 87.4 316.7 0c24.4-24.4 42.1-53.1 52.9-83.7c5.9-16.7-2.9-34.9-19.5-40.8s-34.9 2.9-40.8 19.5c-7.7 21.8-20.2 42.3-37.8 59.8c-62.5 62.5-163.8 62.5-226.3 0l-.1-.1L125.6 352H160c17.7 0 32-14.3 32-32s-14.3-32-32-32H48.4c-1.6 0-3.2 .1-4.8 .3s-3.1 .5-4.6 1z"/></svg></button>
             <button id="switchBtn" title="Switch Editor">⇄ Switch</button>
             <button id="btnSetshape2" title="Setshape2 Editor" onclick="typeof SetshapeEditor!=='undefined'&&SetshapeEditor.open()"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACbUlEQVQ4y52P20uTcRzGn9972MEdHBvOw1JZZk4dTjyXhGEGUgkWFJH1P3QTQXgVne6UThCEFxVBYWVgWCCBQ6IM0cBkouLxTbc5NJzv67b39/66SG2pQfXcfPnC83y/n4fgP1RZd8JAeJ4nIDH+X8OFpQdyKE2063T6S5QmwgIAVNUdE0yWVCMhAGMbTgYQAjAAK5FwS2Zm5sGhgf6LvCC0rq4s3fBV13Z+HRwAceXuE1PtzisAvAD5/R0BwBisNkfxKbfsGdHcseHRQF35oYbHfW9ePZweH2kTIqEFc15Rme/chTOKOz+/eiMFgDCAEQBsKbzk6H/WQWrNU3pDZUW3v7fnqiJH72mUMmHzGdVojijq8vCrAQAgHoth/EMv0uk3+OfNpMwxnDbrSi9YNJrIwuwk45KJ2bYZi63jXVcXrMHPWLSWYH/jWfi/u+LrTGyKhCQOAITtlTcnpRSTYxNw5XkgGS1objyCGSmMZUXt9fe8OOnM2KPuOJAsjufg8RZCmplDia8IgigCAHhB0ADEQ4vzP327hdkGB8fxyHbnQhBFKLKMdUUBRzh9fVOLbtO7KwHZtklzEtpv3eyU12QZYLA50i+X1tRfH/74XtuVIJkkGo3iwe07jxi0+0Vl5a8bmk+vBr586jNZbW1bBIQQHiA81bQdB1SVQlW1YNXho63dTzuOuwuK07wVNXaAtwOAoFFKOY7kTEwHfRPTwR0UaiIBg8nsefv8ybW9Hm+9McWUPTo0GLLY7IGtunpDSkaK2VL4pyrOrNzzdmeWh+O4OGOANDX2UllbvRtamGUEfyczCDEk7ctgjALAD3gS6nZ20OQgAAAAAElFTkSuQmCC" width="14" height="14" style="vertical-align:middle;image-rendering:pixelated;"> Setshape2</button>
             <button id="btnGmapGen" title="Gmap Generator" onclick="typeof GmapGenerator!=='undefined'&&GmapGenerator.open()"><img src="icons/gmapgen.ico" width="14" height="14" style="image-rendering:pixelated;"> Gmap</button>
@@ -628,21 +672,7 @@
                 </div>
             </div>
         </div>
-        <div id="infoDialog" class="dialog-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10000;justify-content:center;align-items:center;">
-            <div class="dialog-content" style="background:#2b2b2b;border:2px solid #1a1a1a;width:720px;max-width:92vw;height:420px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 4px 16px rgba(0,0,0,0.9);">
-                <div class="dialog-titlebar" style="background:#1e1e1e;border-bottom:2px solid #0a0a0a;display:flex;align-items:stretch;">
-                    <div style="display:flex;align-items:center;padding:10px 14px;gap:8px;flex:1;"><img src="favicon.ico" class="titlebar-logo" style="width:18px;height:18px;image-rendering:pixelated;"><span style="font-family:'chevyray',monospace;font-size:13px;color:#c0c0c0;user-select:none;">Gani Editor</span></div>
-                    <div style="display:flex;align-items:stretch;">
-                        <button class="info-tab-btn" data-tab="about" style="background:transparent;border:none;border-left:1px solid #0a0a0a;padding:10px 16px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;color:#888;user-select:none;">About</button>
-                        <button class="info-tab-btn" data-tab="changelog" style="background:transparent;border:none;border-left:1px solid #0a0a0a;padding:10px 16px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;color:#888;user-select:none;">Changelog</button>
-                    </div>
-                </div>
-                <div id="infoContent" style="flex:1;overflow-y:auto;padding:20px;font-family:'chevyray',monospace;font-size:12px;color:#e0e0e0;line-height:1.6;user-select:none;"></div>
-                <div style="border-top:1px solid #0a0a0a;padding:12px 16px;display:flex;justify-content:flex-end;">
-                    <button id="infoClose" style="background:#1a1a1a;color:#ffffff;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;padding:8px 16px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;">Close</button>
-                </div>
-            </div>
-        </div>
+
         <div id="defaultGaniDialog" class="dialog-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10000;justify-content:center;align-items:center;">
             <div style="background:#2b2b2b;border:2px solid #1a1a1a;padding:20px;width:400px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;">
                 <div style="margin-bottom:16px;color:#e0e0e0;font-size:12px;font-family:'chevyray',monospace;">Select Default GANI</div>
@@ -686,6 +716,7 @@
             <div style="width:1px;background:#1a1a1a;margin:0 4px;"></div>
             <button title="Settings (F2)" id="btnSettings" style="display:flex;align-items:center;gap:5px;"><i class="fas fa-cog"></i></button>
             <button title="About / Changelog (F1)" id="btnAbout"><i class="fas fa-info-circle"></i></button>
+            <button class="btn-check-update" title="Check for Updates" style="display:none;"><svg width="12" height="12" viewBox="0 0 512 512" fill="currentColor"><path d="M105.1 202.6c7.7-21.8 20.2-42.3 37.8-59.8c62.5-62.5 163.8-62.5 226.3 0L386.3 160H352c-17.7 0-32 14.3-32 32s14.3 32 32 32H463.5c0 0 0 0 0 0h.4c17.7 0 32-14.3 32-32V80c0-17.7-14.3-32-32-32s-32 14.3-32 32v35.2L414.4 97.6c-87.5-87.5-229.3-87.5-316.8 0C73.2 122 55.6 150.7 44.8 181.4c-5.9 16.7 2.9 34.9 19.5 40.8s34.9-2.9 40.8-19.5zM39 289.3c-5 1.5-9.8 4.2-13.7 8.2c-4 4-6.7 8.8-8.1 14c-.3 1.2-.6 2.5-.8 3.8c-.3 1.7-.4 3.4-.4 5.1V432c0 17.7 14.3 32 32 32s32-14.3 32-32V396.9l17.6 17.5 0 0c87.5 87.4 229.3 87.4 316.7 0c24.4-24.4 42.1-53.1 52.9-83.7c5.9-16.7-2.9-34.9-19.5-40.8s-34.9 2.9-40.8 19.5c-7.7 21.8-20.2 42.3-37.8 59.8c-62.5 62.5-163.8 62.5-226.3 0l-.1-.1L125.6 352H160c17.7 0 32-14.3 32-32s-14.3-32-32-32H48.4c-1.6 0-3.2 .1-4.8 .3s-3.1 .5-4.6 1z"/></svg></button>
             <button id="switchBtn" title="Switch Editor">⇄ Switch</button>
             <button id="btnSetshape2" title="Setshape2 Editor" onclick="typeof SetshapeEditor!=='undefined'&&SetshapeEditor.open()"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACbUlEQVQ4y52P20uTcRzGn9972MEdHBvOw1JZZk4dTjyXhGEGUgkWFJH1P3QTQXgVne6UThCEFxVBYWVgWCCBQ6IM0cBkouLxTbc5NJzv67b39/66SG2pQfXcfPnC83y/n4fgP1RZd8JAeJ4nIDH+X8OFpQdyKE2063T6S5QmwgIAVNUdE0yWVCMhAGMbTgYQAjAAK5FwS2Zm5sGhgf6LvCC0rq4s3fBV13Z+HRwAceXuE1PtzisAvAD5/R0BwBisNkfxKbfsGdHcseHRQF35oYbHfW9ePZweH2kTIqEFc15Rme/chTOKOz+/eiMFgDCAEQBsKbzk6H/WQWrNU3pDZUW3v7fnqiJH72mUMmHzGdVojijq8vCrAQAgHoth/EMv0uk3+OfNpMwxnDbrSi9YNJrIwuwk45KJ2bYZi63jXVcXrMHPWLSWYH/jWfi/u+LrTGyKhCQOAITtlTcnpRSTYxNw5XkgGS1objyCGSmMZUXt9fe8OOnM2KPuOJAsjufg8RZCmplDia8IgigCAHhB0ADEQ4vzP327hdkGB8fxyHbnQhBFKLKMdUUBRzh9fVOLbtO7KwHZtklzEtpv3eyU12QZYLA50i+X1tRfH/74XtuVIJkkGo3iwe07jxi0+0Vl5a8bmk+vBr586jNZbW1bBIQQHiA81bQdB1SVQlW1YNXho63dTzuOuwuK07wVNXaAtwOAoFFKOY7kTEwHfRPTwR0UaiIBg8nsefv8ybW9Hm+9McWUPTo0GLLY7IGtunpDSkaK2VL4pyrOrNzzdmeWh+O4OGOANDX2UllbvRtamGUEfyczCDEk7ctgjALAD3gS6nZ20OQgAAAAAElFTkSuQmCC" width="14" height="14" style="vertical-align:middle;image-rendering:pixelated;"> Setshape2</button>
             <button id="btnGmapGen" title="Gmap Generator" onclick="typeof GmapGenerator!=='undefined'&&GmapGenerator.open()"><img src="icons/gmapgen.ico" width="14" height="14" style="image-rendering:pixelated;"> Gmap</button>
@@ -919,29 +950,6 @@
         <input type="file" id="fileInput" accept=".nw,.gmap,.graal,.zelda" multiple style="display:none;">
         <input type="file" id="imageInput" multiple accept="image/*" style="display:none;">
         <input type="file" id="folderInput" webkitdirectory style="display:none;">
-        <div id="aboutDialog" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:transparent;z-index:10000;justify-content:center;align-items:center;">
-            <div style="background:#2b2b2b;border:2px solid #1a1a1a;width:540px;max-width:92vw;height:380px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 4px 16px rgba(0,0,0,0.9);">
-                <div class="ed-dlg-title" style="border-bottom:2px solid #0a0a0a;display:flex;align-items:stretch;">
-                    <div style="display:flex;align-items:center;padding:10px 14px;gap:8px;flex:1;"><img src="favicon.ico" style="width:18px;height:18px;image-rendering:pixelated;"><span style="font-size:13px;">Level Editor</span></div>
-                    <div style="display:flex;align-items:stretch;">
-                        <button class="about-tab" data-tab="about" style="background:transparent;border:none;border-left:1px solid #0a0a0a;padding:10px 16px;cursor:pointer;font-size:12px;color:#4a9eff;">About</button>
-                        <button class="about-tab" data-tab="changelog" style="background:transparent;border:none;border-left:1px solid #0a0a0a;padding:10px 16px;cursor:pointer;font-size:12px;color:#888;">Changelog</button>
-                    </div>
-                </div>
-                <div id="aboutTabAbout" style="flex:1;overflow-y:auto;padding:20px;font-size:12px;color:#e0e0e0;line-height:1.6;">
-                    <p style="margin:0 0 12px 0;"><strong>Level Editor Web</strong> <span style="color:#888;font-size:11px;">(alpha)</span></p>
-                    <p style="margin:0 0 12px 0;">A javascript-based level editor for Graal NW files, based around Stefan/39sters editors. Work in progress.</p>
-                    <p style="margin:0 0 12px 0;">Part of Preagonal/OpenGraal &mdash; preserving Graal for future generations.</p>
-                    <p style="margin:0 0 12px 0;border-top:1px solid #0a0a0a;padding-top:12px;font-size:11px;color:#888;"><strong>Credits:</strong><br>Original C++ TilesEditor by <a href="https://www.xing.com/profile/Stefan_Knorr9" target="_blank" style="color:#4a9eff;text-decoration:none;">Stefan Knorr</a><br>Modern C++ version by <a href="https://github.com/lukegrahamSydney/TilesEditor" target="_blank" style="color:#4a9eff;text-decoration:none;">39ster/luke graham</a><br>Javascript Web version by <a href="https://github.com/denveous" target="_blank" style="color:#4a9eff;text-decoration:none;">denveous</a></p>
-                </div>
-                <div id="aboutTabChangelog" style="flex:1;overflow-y:auto;padding:20px;font-size:12px;color:#e0e0e0;line-height:1.6;display:none;">
-                    <div id="changelogContent" style="color:#888;">Loading...</div>
-                </div>
-                <div style="border-top:1px solid #0a0a0a;padding:12px 16px;display:flex;justify-content:flex-end;">
-                    <button id="aboutClose" style="background:#1a1a1a;color:#fff;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;padding:8px 16px;cursor:pointer;font-size:12px;">Close</button>
-                </div>
-            </div>
-        </div>
         <div id="defaultGaniDialog" class="dialog-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10000;justify-content:center;align-items:center;">
             <div style="background:#2b2b2b;border:2px solid #1a1a1a;width:400px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 4px 16px rgba(0,0,0,0.9);">
                 <div class="dialog-titlebar" style="border-bottom:2px solid #0a0a0a;display:flex;align-items:center;padding:10px 14px;gap:8px;"><i class="fas fa-book"></i><span style="font-family:'chevyray',monospace;font-size:13px;color:#c0c0c0;">Default Levels</span></div>

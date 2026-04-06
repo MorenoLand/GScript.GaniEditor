@@ -22,8 +22,8 @@ function cp(from, to) {
 
 rm(dist);
 
-['index.html', 'favicon.ico', 'example-theme.css', 'changelog.gani.json', 'changelog.level.json'].forEach(f => cp(f));
-['ganis', 'fonts', 'icons', 'images', 'sounds', 'vendor', 'js', 'css', 'levels'].forEach(d => cp(d));
+['index.html', 'favicon.ico', 'example-theme.css', 'changelog.json'].forEach(f => cp(f));
+['ganis', 'fonts', 'icons', 'images', 'sounds', 'vendor', 'js', 'css', 'levels', 'objects'].forEach(d => cp(d));
 cp('node_modules/monaco-editor/min/vs', 'monaco-editor/min/vs');
 
 const levelsDir = path.join(root, 'levels');
@@ -37,5 +37,11 @@ const ganiFiles = fs.readdirSync(ganisDir).filter(f => f.endsWith('.gani'));
 const ganisIndex = JSON.stringify(ganiFiles);
 fs.writeFileSync(path.join(root, 'ganis', 'index.json'), ganisIndex);
 fs.writeFileSync(path.join(dist, 'ganis', 'index.json'), ganisIndex);
+
+const objectsDir = path.join(root, 'objects');
+const objectFiles = fs.readdirSync(objectsDir).filter(f => f.endsWith('.npc'));
+const objectsIndex = JSON.stringify(objectFiles);
+fs.writeFileSync(path.join(root, 'objects', 'index.json'), objectsIndex);
+fs.writeFileSync(path.join(dist, 'objects', 'index.json'), objectsIndex);
 
 console.log('Build complete: dist/');

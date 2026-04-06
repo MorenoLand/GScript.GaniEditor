@@ -3,6 +3,7 @@ use std::sync::Mutex;
 use std::io::Write;
 use std::time::Duration;
 use tauri::{State, Manager, Emitter};
+use tauri_plugin_updater::UpdaterExt;
 
 fn crc32(data: &[u8]) -> u32 {
     let mut c = 0xFFFFFFFFu32;
@@ -207,6 +208,22 @@ fn register_file_associations() -> Result<String, String> {
     if failed.is_empty() { Ok("Registered .nw .gmap .gani .zelda .graal".into()) } else { Err(format!("Failed: {}", failed.join(", "))) }
 }
 
+#[tauri::command]
+async fn check_for_update(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    match updater.check().await {
+        Ok(Some(update)) => {
+            let version = update.version.clone();
+            let _ = update.download_and_install(|_, _| {}, || {}).await;
+            app.restart();
+            Ok(version)
+        }
+        Ok(None) => Err("up_to_date".into()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let file_arg: Option<String> = std::env::args().nth(1).filter(|a| std::path::Path::new(a).exists());
@@ -224,7 +241,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![scan_workspace, resolve_path, load_workspace_cache, get_open_file_arg, register_file_associations])
+        .invoke_handler(tauri::generate_handler![scan_workspace, resolve_path, load_workspace_cache, get_open_file_arg, register_file_associations, check_for_update])
         .setup(|app| {
             if cfg!(debug_assertions) { app.handle().plugin(tauri_plugin_log::Builder::default().level(log::LevelFilter::Info).build())?; }
             if let Some(win) = app.get_webview_window("main") { let _ = win.show(); let _ = win.set_focus(); }
@@ -232,9 +249,8 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 if let Ok(updater) = handle.updater() {
                     if let Ok(Some(update)) = updater.check().await {
-                        if let Ok(()) = update.download_and_install(|_, _| {}, || {}).await {
-                            handle.restart();
-                        }
+                        let _ = update.download_and_install(|_, _| {}, || {}).await;
+                        handle.restart();
                     }
                 }
             });

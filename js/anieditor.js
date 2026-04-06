@@ -7817,6 +7817,7 @@ window.addEventListener("load", async () => {
             if (oldStyle) oldStyle.remove();
             document.body.style.background = "";
             document.body.style.color = "";
+            const _tb = document.getElementById('tauriBar'); if (_tb) { _tb.style.background = ''; _tb.style.borderColor = ''; }
             ["--timeline-frame-bg","--timeline-frame-selected-bg","--timeline-frame-multi-bg","--quadrant-divider","--timeline-ruler-bg","--timeline-ruler-tick","--timeline-ruler-text"].forEach(v => document.documentElement.style.removeProperty(v));
             const settingsDialog = document.getElementById("settingsDialog");
             const aboutDialog = document.getElementById("infoDialog");
@@ -7976,19 +7977,19 @@ window.addEventListener("load", async () => {
             input[type="range"] { background: transparent !important; border: none !important; }
             input[type="range"]::-webkit-slider-thumb { background: ${buttonBg} !important; border-color: ${colors.border} !important; }
             input[type="range"]::-moz-range-thumb { background: ${buttonBg} !important; border-color: ${colors.border} !important; }
-            input[type="range"]::-webkit-slider-runnable-track { background: transparent !important; border: none !important; }
-            input[type="range"]::-moz-range-track { background: transparent !important; border: none !important; }
+            input[type="range"]::-webkit-slider-runnable-track { background: ${colors.border} !important; border: none !important; box-shadow: none !important; }
+            input[type="range"]::-moz-range-track { background: ${colors.border} !important; border: none !important; box-shadow: none !important; }
             .slider-group { border: none !important; border-top: none !important; box-shadow: none !important; background: transparent !important; margin-top: 0 !important; padding-top: 0 !important; }
             .slider-group input[type="range"] { background: transparent !important; border: none !important; }
             .slider-group input[type="range"]::-webkit-slider-thumb { background: ${buttonBg} !important; border-color: ${colors.border} !important; }
             .slider-group input[type="range"]::-moz-range-thumb { background: ${buttonBg} !important; border-color: ${colors.border} !important; }
-            .slider-group input[type="range"]::-webkit-slider-runnable-track { background: transparent !important; border: none !important; }
-            .slider-group input[type="range"]::-moz-range-track { background: transparent !important; border: none !important; }
+            .slider-group input[type="range"]::-webkit-slider-runnable-track { background: ${colors.border} !important; border: none !important; box-shadow: none !important; }
+            .slider-group input[type="range"]::-moz-range-track { background: ${colors.border} !important; border: none !important; box-shadow: none !important; }
             #settingsUIScale { background: transparent !important; border: none !important; }
             #settingsUIScale::-webkit-slider-thumb { background: ${buttonBg} !important; border-color: ${colors.border} !important; }
             #settingsUIScale::-moz-range-thumb { background: ${buttonBg} !important; border-color: ${colors.border} !important; }
-            #settingsUIScale::-webkit-slider-runnable-track { background: transparent !important; border-color: ${colors.border} !important; }
-            #settingsUIScale::-moz-range-track { background: transparent !important; border-color: ${colors.border} !important; }
+            #settingsUIScale::-webkit-slider-runnable-track { background: ${colors.border} !important; box-shadow: none !important; }
+            #settingsUIScale::-moz-range-track { background: ${colors.border} !important; box-shadow: none !important; }
             .toolbar button, .sprite-toolbar button, .playback-controls button, .item-controls button, .settings-group button, .canvas-controls button:not(.active) { background: ${buttonBg} !important; color: ${buttonText} !important; border-color: ${colors.border} !important; }
             .toolbar button:hover, .sprite-toolbar button:hover, .playback-controls button:hover, .item-controls button:hover, .settings-group button:hover, .canvas-controls button:hover:not(.active) { background: ${buttonHover} !important; }
             ${scheme === "fusion-light" || scheme === "light-style" ? `.fas { filter: brightness(0) !important; }` : scheme === "default" ? `.fas { filter: none !important; }` : scheme === "dark-orange" ? `.fas { filter: invert(1) brightness(1.8) sepia(1) saturate(3) hue-rotate(5deg) !important; }` : scheme === "aqua" ? `.fas { filter: invert(1) brightness(1.8) sepia(1) saturate(4) hue-rotate(150deg) !important; }` : `.fas { filter: invert(1) brightness(1.2) !important; }`}
@@ -8044,6 +8045,16 @@ window.addEventListener("load", async () => {
             #collabPeers { background: ${colors.bg} !important; border-color: ${colors.border} !important; }
             #collabCopy, #collabJoin { background: ${buttonBg} !important; color: ${buttonText} !important; border-color: ${colors.border} !important; }
             #collabCopy:hover, #collabJoin:hover { background: ${buttonHover} !important; }
+            #infoClose, #aboutClose { background: ${buttonBg} !important; color: ${buttonText} !important; border-color: ${colors.border} !important; }
+            #infoClose:hover, #aboutClose:hover { background: ${buttonHover} !important; }
+            .info-tab-btn { color: ${colors.text} !important; border-color: ${colors.border} !important; }
+            .info-tab-btn.active { color: ${colors.text} !important; background: ${colors.panel} !important; }
+            #tauriBar { background: ${colors.panel} !important; border-color: ${colors.border} !important; }
+            #tauriBar button { background: transparent !important; color: ${colors.text} !important; border-color: transparent !important; }
+            #tauriBar button:hover { background: ${colors.hover} !important; }
+            #tauriBar .tb-title span { color: ${colors.text} !important; }
+            .tool-button.active { background: #4a9eff !important; color: #fff !important; border-color: #2a7eff !important; }
+            .tool-button.active:hover { background: #5aaeff !important; }
         `;
         document.head.appendChild(style);
         const settingsDialog = document.getElementById("settingsDialog");
@@ -9379,14 +9390,14 @@ window.addEventListener("load", async () => {
     function _getInfoTabHTML(tab) {
         const fontFamily = getFontFamily(localStorage.getItem("editorFont") || "chevyray");
         if (tab === "about") return `
-            <p style="margin:0 0 12px 0;">Version <span style="color:#888; font-size:10px;">${APP_VERSION}</span></p>
-            <p style="margin:0 0 12px 0;">A javascript-based animation editor for GANI files, based around Stefan/39sters editors.</p>
-            <p style="margin:0 0 12px 0;">Part of Preagonal/OpenGraal - preserving Graal for future generations.</p>
+            <p style="margin:0 0 12px 0;"><strong>GraalSuite</strong> <span style="color:#888; font-size:10px;">(alpha) v${APP_VERSION}</span></p>
+            <p style="margin:0 0 12px 0;">A web-based suite of tools for Graal Online development — includes a .gani animation editor, .nw/.graal/.zelda level editor, Gmap Generator, and Setshape2 editor.</p>
+            <p style="margin:0 0 12px 0;">Part of Preagonal/OpenGraal &mdash; preserving Graal for future generations.</p>
             <p style="margin:0 0 12px 0; border-top:1px solid #0a0a0a; padding-top:12px; font-size:11px; color:#888;">
                 <strong>Credits:</strong><br>
-                Original C++ GaniEditor by <a href="https://www.xing.com/profile/Stefan_Knorr9" target="_blank" style="color:#4a9eff; text-decoration:none;">Stefan Knorr</a><br>
-                Modern C++ version by <a href="https://github.com/lukegrahamSydney/TilesEditor" target="_blank" style="color:#4a9eff; text-decoration:none;">39ster/luke graham</a><br>
-                Javascript Web version by <a href="https://github.com/denveous" target="_blank" style="color:#4a9eff; text-decoration:none;">denveous</a>
+                Original C++ TilesEditor by <a href="https://www.xing.com/profile/Stefan_Knorr9" target="_blank" style="color:#4a9eff; text-decoration:none;">Stefan Knorr</a><br>
+                Modern C++ TilesEditor by <a href="https://github.com/lukegrahamSydney/TilesEditor" target="_blank" style="color:#4a9eff; text-decoration:none;">39ster/luke graham</a><br>
+                GraalSuite by <a href="https://github.com/denveous" target="_blank" style="color:#4a9eff; text-decoration:none;">denveous</a>
             </p>`;
         if (tab === "keybinds") {
             const editableActions = [
@@ -9430,11 +9441,14 @@ ${editableActions.map(a => kbRow(a.label, a.key)).join("")}
     function _renderChangelog() {
         if (!_changelogData || !_infoContent) return;
         _infoContent.style.fontFamily = getFontFamily(localStorage.getItem("editorFont") || "chevyray");
-        _infoContent.innerHTML = _changelogData.map(entry => `
-            <div style="margin-bottom:20px;">
-                <div style="font-size:13px; color:#4a9eff; margin-bottom:8px; border-bottom:1px solid #3a3a3a; padding-bottom:6px;">v${entry.version} <span style="color:#666; font-size:11px;">(${entry.date})</span></div>
+        const _tagColors = { 'GraalSuite':'#c792ea','Level Editor':'#4a9eff','Gani Editor':'#56d364','Gmap Generator':'#ffa657','Setshape2':'#ff7b72' };
+        _infoContent.innerHTML = _changelogData.map(entry => {
+            const tc = _tagColors[entry.tag] || '#888';
+            return `<div style="margin-bottom:20px;">
+                <div style="font-size:13px; color:#569cd6; margin-bottom:8px; border-bottom:1px solid #3a3a3a; padding-bottom:6px;">v${entry.version} <span style="color:${tc};font-size:11px;">(${entry.tag})</span> <span style="color:#666; font-size:11px;">${entry.date}</span></div>
                 <ul style="margin:0; padding-left:20px; color:#c0c0c0;">${entry.changes.map(c => `<li style="margin-bottom:4px;">${c}</li>`).join("")}</ul>
-            </div>`).join("");
+            </div>`;
+        }).join("");
     }
     function switchInfoTab(tab) {
         if (!_infoContent) return;
@@ -9447,7 +9461,7 @@ ${editableActions.map(a => kbRow(a.label, a.key)).join("")}
         if (tab === "changelog") {
             if (_changelogData) { _renderChangelog(); return; }
             _infoContent.innerHTML = `<div style="color:#888;">Loading...</div>`;
-            fetch("changelog.gani.json").then(r => r.json()).then(data => { _changelogData = data; _renderChangelog(); }).catch(() => { _infoContent.innerHTML = `<div style="color:#888;">Failed to load changelog.</div>`; });
+            fetch("changelog.json").then(r => r.json()).then(data => { _changelogData = data; _renderChangelog(); }).catch(() => { _infoContent.innerHTML = `<div style="color:#888;">Failed to load changelog.</div>`; });
         } else {
             _infoContent.innerHTML = _getInfoTabHTML(tab);
             if (tab === "keybinds") {
@@ -9542,6 +9556,7 @@ ${editableActions.map(a => kbRow(a.label, a.key)).join("")}
         document.querySelectorAll(".info-tab-btn").forEach(btn => { btn.onclick = () => switchInfoTab(btn.dataset.tab); });
         const btnAbout = document.getElementById("btnAbout");
         if (btnAbout) btnAbout.onclick = () => openInfoDialog("about");
+        window.openInfoDialog = openInfoDialog;
     }
     document.querySelectorAll(".settings-tab-btn").forEach(btn => { btn.onclick = () => switchSettingsTab(btn.dataset.tab); });
     const updateHistoryFont = () => {
