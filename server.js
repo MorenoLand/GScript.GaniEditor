@@ -49,6 +49,9 @@ const server = http.createServer((req, res) => {
                 } else if (dir === '/levels/') {
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify(files.filter(f => /\.(nw|zelda|graal|gmap)$/i.test(f))));
+                } else if (dir === '/objects/') {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(files.filter(f => f.endsWith('.npc'))));
                 } else {
                     let html = '<!DOCTYPE html><html><head><title>Directory Listing</title><base href="' + req.url + '"></head><body><ul>';
                     for (const file of files) { const ext = path.extname(file).toLowerCase(); if (['.png','.jpg','.jpeg','.gif','.svg','.bmp'].includes(ext)) html += `<li><a href="${file}">${file}</a></li>`; }

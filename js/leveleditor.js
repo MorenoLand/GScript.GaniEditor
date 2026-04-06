@@ -576,6 +576,7 @@ class LevelEditor {
         this.initColorScheme();
         if (_isTauri) this.restoreWorkspaceFromCache().catch(() => {});
         this._applyUISettings(this._getSettings());
+        this.loadDefaultObjects().catch(() => {});
     }
 
     requestRender() {
@@ -847,21 +848,44 @@ class LevelEditor {
         document.getElementById('btnAddLayer')?.addEventListener('click', () => this.addLayer());
         document.getElementById('btnDeleteLayer')?.addEventListener('click', () => this.deleteLayer());
         const btnAbout = document.getElementById('btnAbout');
-        if (btnAbout) btnAbout.addEventListener('click', () => { const d = document.getElementById('aboutDialog'); if (d) d.style.display = 'flex'; });
+        if (btnAbout) btnAbout.addEventListener('click', () => window.openInfoDialog?.('about'));
+        if (_isTauri) {
+            document.querySelectorAll('.btn-check-update').forEach(btn => {
+                btn.style.display = '';
+                btn.addEventListener('click', async () => {
+                    if (document.getElementById('_updateDlg')) return;
+                    btn.disabled = true;
+                    const showUpdateDlg = (msg, isError = false) => {
+                        const existing = document.getElementById('_updateDlg');
+                        if (existing) existing.remove();
+                        const box = document.createElement('div');
+                        box.id = '_updateDlg';
+                        box.style.cssText = 'position:fixed;top:80px;left:calc(50% - 180px);width:360px;z-index:10000;display:flex;flex-direction:column;background:#2b2b2b;border:2px solid #1a1a1a;';
+                        box.classList.add('ed-dialog-box');
+                        box.innerHTML = `
+                            <div style="padding:8px 12px;font-size:13px;display:flex;align-items:center;justify-content:space-between;user-select:none;background:#353535;flex-shrink:0;" class="_udlg-title">
+                                <span>Check for Updates</span>
+                                <button id="_updateDlgClose" style="background:none;border:none;cursor:pointer;font-size:16px;line-height:1;">×</button>
+                            </div>
+                            <div style="padding:16px;font-size:13px;${isError?'color:#ff6b6b;':''}font-family:chevyray,monospace;">${msg}</div>
+                        `;
+                        document.body.appendChild(box);
+                        box.querySelector('#_updateDlgClose').addEventListener('click', () => { box.remove(); btn.disabled = false; });
+                    };
+                    showUpdateDlg('Checking for updates...');
+                    _tauri.core.invoke('check_for_update').then(() => {
+                        showUpdateDlg('Update found! Downloading and installing...');
+                    }).catch(e => {
+                        if (e === 'up_to_date') showUpdateDlg('You\'re up to date!');
+                        else showUpdateDlg(`Update check failed:\n${e}`, true);
+                        btn.disabled = false;
+                    });
+                });
+            });
+        }
         document.getElementById('btnSettings')?.addEventListener('click', () => this.openSettingsDialog());
         document.getElementById('btnPlay')?.addEventListener('click', () => this.togglePlayMode());
         document.getElementById('btnPlayerSetup')?.addEventListener('click', () => this.openPlayerCustomizeDialog());
-        const aboutClose = document.getElementById('aboutClose');
-        if (aboutClose) aboutClose.addEventListener('click', () => { document.getElementById('aboutDialog').style.display = 'none'; });
-        document.querySelectorAll('.about-tab').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.about-tab').forEach(b => { b.style.color = '#888'; b.style.background = 'transparent'; });
-                btn.style.color = '#4a9eff'; btn.style.background = '#252525';
-                document.getElementById('aboutTabAbout').style.display = btn.dataset.tab === 'about' ? 'block' : 'none';
-                document.getElementById('aboutTabChangelog').style.display = btn.dataset.tab === 'changelog' ? 'block' : 'none';
-                if (btn.dataset.tab === 'changelog') this.loadChangelog();
-            });
-        });
     }
 
     handleMouseDown(e) {
@@ -1482,11 +1506,11 @@ class LevelEditor {
         if (e.key === 'Escape') {
             const modals = Array.from(document.body.children).filter(el => el._closeModal);
             if (modals.length) { modals[modals.length - 1]._closeModal(); return; }
-            const about = document.getElementById('aboutDialog');
+            const about = document.getElementById('infoDialog');
             if (about?.style.display === 'flex') { about.style.display = 'none'; return; }
         }
         const _kb = this._getKeybinds();
-        if (_matchKB(e, _kb.about)) { e.preventDefault(); const d = document.getElementById('aboutDialog'); if (d) d.style.display = 'flex'; return; }
+        if (_matchKB(e, _kb.about)) { e.preventDefault(); window.openInfoDialog?.('about'); return; }
         if (_matchKB(e, _kb.settings)) { e.preventDefault(); this.openSettingsDialog(); return; }
         if (_matchKB(e, _kb.playMode)) { e.preventDefault(); this.togglePlayMode(); return; }
         if (_matchKB(e, _kb.delete)) {
@@ -1686,6 +1710,9 @@ class LevelEditor {
                 this.ctx.lineWidth = 0.5 / this.zoom;
                 this.ctx.font = `bold ${Math.max(6, _tw2 * 0.55)}px monospace`;
                 this.ctx.textAlign = 'center'; this.ctx.textBaseline = 'middle';
+                const _ttCS = {};
+                for (const [k, [r2,g2,b2]] of Object.entries(_ttColors)) _ttCS[k] = [`rgba(${r2},${g2},${b2},0.25)`, `rgba(${r2},${g2},${b2},0.8)`];
+                const _byType = {};
                 for (let ty2 = visY0; ty2 <= visY1; ty2++) {
                     for (let tx2 = visX0; tx2 <= visX1; tx2++) {
                         let tType = 0;
@@ -1697,15 +1724,22 @@ class LevelEditor {
                             tType = TILE_TYPES.TYPE0[typeId] || 0;
                         }
                         if (!tType) continue;
-                        const [r2,g2,b2] = _ttColors[tType] || [200,200,200];
-                        this.ctx.fillStyle = `rgba(${r2},${g2},${b2},0.25)`; this.ctx.strokeStyle = `rgba(${r2},${g2},${b2},0.8)`;
-                        this.ctx.fillRect(tx2*_tw2, ty2*_th2, _tw2, _th2); this.ctx.strokeRect(tx2*_tw2, ty2*_th2, _tw2, _th2);
-                        if (_tw2 >= 10) {
-                            this.ctx.fillStyle = 'rgba(0,0,0,0.7)';
-                            this.ctx.fillText(tType, tx2*_tw2 + _tw2/2 + 1, ty2*_th2 + _th2/2 + 1);
-                            this.ctx.fillStyle = '#fff';
-                            this.ctx.fillText(tType, tx2*_tw2 + _tw2/2, ty2*_th2 + _th2/2);
-                        }
+                        (_byType[tType] || (_byType[tType] = [])).push(tx2, ty2);
+                    }
+                }
+                for (const [tType, coords] of Object.entries(_byType)) {
+                    const [fc, sc] = _ttCS[tType] || ['rgba(200,200,200,0.25)', 'rgba(200,200,200,0.8)'];
+                    this.ctx.fillStyle = fc; this.ctx.beginPath();
+                    for (let i = 0; i < coords.length; i += 2) this.ctx.rect(coords[i]*_tw2, coords[i+1]*_th2, _tw2, _th2);
+                    this.ctx.fill();
+                    this.ctx.strokeStyle = sc; this.ctx.beginPath();
+                    for (let i = 0; i < coords.length; i += 2) this.ctx.rect(coords[i]*_tw2, coords[i+1]*_th2, _tw2, _th2);
+                    this.ctx.stroke();
+                    if (_tw2 >= 10) {
+                        this.ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                        for (let i = 0; i < coords.length; i += 2) this.ctx.fillText(tType, coords[i]*_tw2 + _tw2/2 + 1, coords[i+1]*_th2 + _th2/2 + 1);
+                        this.ctx.fillStyle = '#fff';
+                        for (let i = 0; i < coords.length; i += 2) this.ctx.fillText(tType, coords[i]*_tw2 + _tw2/2, coords[i+1]*_th2 + _th2/2);
                     }
                 }
                 for (const obj of (this.level.objects || [])) {
@@ -3204,13 +3238,13 @@ class LevelEditor {
             }
             return { image, code: code.trim() };
         };
-        const render = (npcs, dirName) => {
+        const render = (npcs, dirName, append = false) => {
             const el = document.getElementById('objectsLibDir');
-            if (el) el.value = dirName;
+            if (el && dirName) el.value = dirName;
             const list = document.getElementById('objectsList');
             if (!list) return;
-            if (!npcs.length) { list.textContent = 'No .npc files found.'; list.style.color = '#666'; return; }
-            list.innerHTML = '';
+            if (!npcs.length) return;
+            if (!append) list.innerHTML = '';
             list.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
             for (const { name, image, code } of npcs) {
                 const row = document.createElement('div');
@@ -3254,13 +3288,71 @@ class LevelEditor {
                 const dir = await window.showDirectoryPicker();
                 const files = [];
                 for await (const [, h] of dir.entries()) if (h.kind === 'file') files.push(await h.getFile());
-                render(await collect(files), dir.name);
+                render(await collect(files), dir.name, true);
             } catch(e) {}
         } else {
             const input = document.createElement('input');
             input.type = 'file'; input.accept = '.npc'; input.multiple = true;
-            input.onchange = async e => { if (!e.target.files.length) return; render(await collect([...e.target.files]), 'Objects'); };
+            input.onchange = async e => { if (!e.target.files.length) return; render(await collect([...e.target.files]), 'Objects', true); };
             input.click();
+        }
+    }
+
+    async loadDefaultObjects() {
+        const parseNPC = text => {
+            const lines = text.split('\n');
+            let image = '', code = '', inCode = false;
+            for (const l of lines) {
+                const t = l.trim();
+                if (t.startsWith('IMAGE ')) image = t.slice(6).trim();
+                else if (t === 'SERVERCODE') inCode = true;
+                else if (t === 'SERVERCODEEND') inCode = false;
+                else if (inCode) code += l + '\n';
+            }
+            return { image, code: code.trim() };
+        };
+        const res = await fetch('objects/');
+        if (!res.ok) return;
+        const files = await res.json();
+        const npcs = [];
+        for (const name of files) {
+            if (!name.toLowerCase().endsWith('.npc')) continue;
+            const r = await fetch(`objects/${name}`);
+            if (!r.ok) continue;
+            const text = await r.text();
+            if (!text.startsWith('NPC')) continue;
+            const { image, code } = parseNPC(text);
+            npcs.push({ name, image, code });
+        }
+        if (!npcs.length) return;
+        const list = document.getElementById('objectsList');
+        if (!list) return;
+        list.innerHTML = '';
+        list.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
+        for (const { name, image, code } of npcs) {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 6px;cursor:grab;background:#1a1a1a;border:1px solid #333;user-select:none;';
+            row.title = name;
+            if (!this._fcLower && this.fileCache?.images?.size) this._fcLower = new Map([...this.fileCache.images.keys()].map(k => [k.toLowerCase(), k]));
+            const resolvedImg = this.fileCache?.images?.has(image) ? image : (this._fcLower?.get(image.toLowerCase()) || null);
+            const imgSrc = (resolvedImg ? this.fileCache.images.get(resolvedImg) : null) || `images/${image}`;
+            const thumb = document.createElement('img');
+            thumb.src = imgSrc; thumb.style.cssText = 'width:24px;height:24px;object-fit:contain;image-rendering:pixelated;flex-shrink:0;';
+            thumb.onerror = () => { thumb.style.display = 'none'; };
+            const lbl = document.createElement('span');
+            lbl.textContent = name.replace(/\.npc$/i, '');
+            lbl.style.cssText = 'font-size:11px;color:#e0e0e0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:none;pointer-events:none;';
+            row.appendChild(thumb); row.appendChild(lbl);
+            row.addEventListener('mouseenter', () => row.style.background = '#2a2a3a');
+            row.addEventListener('mouseleave', () => row.style.background = '#1a1a1a');
+            row.addEventListener('mousedown', e => {
+                if (e.button !== 0) return;
+                this._dragObjectLibItem = { image, code };
+                this.draggingNewObjectType = 'npc';
+                this.setObjectMode('npc');
+                e.preventDefault();
+            });
+            list.appendChild(row);
         }
     }
 
@@ -4505,18 +4597,23 @@ class LevelEditor {
         if (isBinary) { list.innerHTML = ''; return; }
         const layers = this.level.layers;
         list.innerHTML = '';
+        const _sc = this._schemeColors;
+        const _rowBg = _sc ? _sc.panel : '#2b2b2b', _rowBorder = _sc ? _sc.border : '#1a1a1a';
+        const _activeBg = _sc ? (_sc.bg || '#1e3a5f') : '#1e3a5f';
+        const _btnBg = _sc ? (_sc.button || _sc.hover || '#353535') : '#353535';
+        const _txt = _sc ? _sc.text : '#e0e0e0';
         layers.forEach((layer, i) => {
             const isActive = i === this.currentLayer;
             const row = document.createElement('div');
             row.dataset.layerIdx = i;
             row.draggable = true;
-            row.style.cssText = `display:flex;align-items:center;gap:6px;padding:5px 6px;background:${isActive?'#1e3a5f':'#2b2b2b'};border:1px solid ${isActive?'#4472C4':'#1a1a1a'};cursor:pointer;user-select:none;border-radius:2px;`;
+            row.style.cssText = `display:flex;align-items:center;gap:6px;padding:5px 6px;background:${isActive?'#1e3a5f':_rowBg};border:1px solid ${isActive?'#4472C4':_rowBorder};cursor:pointer;user-select:none;border-radius:2px;`;
             const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = layer.visible !== false; cb.style.cssText = 'cursor:pointer;flex-shrink:0;'; cb.addEventListener('change', e => { e.stopPropagation(); layer.visible = cb.checked; this.render(); });
-            const thumb = document.createElement('canvas'); thumb.width = 56; thumb.height = 56; thumb.style.cssText = 'flex-shrink:0;image-rendering:pixelated;background:#1a1a1a;border:1px solid #111;';
+            const thumb = document.createElement('canvas'); thumb.width = 56; thumb.height = 56; thumb.style.cssText = `flex-shrink:0;image-rendering:pixelated;background:${_rowBg};border:1px solid ${_rowBorder};`;
             this._renderLayerThumb(thumb, i);
-            const name = document.createElement('span'); name.style.cssText = 'flex:1;font-size:12px;font-family:chevyray,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'; name.textContent = `Layer ${i}`;
+            const name = document.createElement('span'); name.style.cssText = `flex:1;font-size:12px;font-family:chevyray,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${_txt};`; name.textContent = `Layer ${i}`;
             const btnWrap = document.createElement('div'); btnWrap.style.cssText = 'display:flex;flex-direction:column;gap:2px;flex-shrink:0;';
-            const mkBtn = (icon, title, fn) => { const b = document.createElement('button'); b.innerHTML = `<i class="fas ${icon}"></i>`; b.title = title; b.style.cssText = 'background:#353535;border:1px solid #1a1a1a;color:#e0e0e0;padding:0;cursor:pointer;width:22px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;'; b.addEventListener('click', e => { e.stopPropagation(); fn(); }); return b; };
+            const mkBtn = (icon, title, fn) => { const b = document.createElement('button'); b.innerHTML = `<i class="fas ${icon}"></i>`; b.title = title; b.style.cssText = `background:${_btnBg};border:1px solid ${_rowBorder};color:${_txt};padding:0;cursor:pointer;width:22px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;`; b.addEventListener('click', e => { e.stopPropagation(); fn(); }); return b; };
             const btnUp = mkBtn('fa-chevron-up', 'Move Up', () => this.moveLayer(i, i - 1));
             const btnDown = mkBtn('fa-chevron-down', 'Move Down', () => this.moveLayer(i, i + 1));
             if (i === 0) btnUp.disabled = true;
@@ -4622,12 +4719,14 @@ class LevelEditor {
     loadChangelog() {
         const el = document.getElementById('changelogContent');
         if (!el || el.dataset.loaded) return;
-        fetch('changelog.level.json').then(r => r.json()).then(data => {
+        fetch('changelog.json').then(r => r.json()).then(data => {
             el.dataset.loaded = '1';
-            el.innerHTML = data.map(entry => `
-                <p style="color:#569cd6;font-weight:bold;margin:0 0 4px">${entry.version} <span style="color:#666;font-weight:normal;">&mdash; ${entry.date}</span></p>
-                <ul style="margin:0 0 14px 16px;padding:0;">${entry.changes.map(c => `<li>${c}</li>`).join('')}</ul>
-            `).join('');
+            const tagColors = { 'GraalSuite':'#c792ea','Level Editor':'#4a9eff','Gani Editor':'#56d364','Gmap Generator':'#ffa657','Setshape2':'#ff7b72' };
+            el.innerHTML = data.map(entry => {
+                const tc = tagColors[entry.tag] || '#888';
+                return `<p style="color:#569cd6;font-weight:bold;margin:0 0 4px">${entry.version} <span style="color:${tc};font-size:11px;">(${entry.tag})</span> <span style="color:#666;font-weight:normal;font-size:11px;">&mdash; ${entry.date}</span></p>
+                <ul style="margin:0 0 14px 16px;padding:0;">${entry.changes.map(c => `<li>${c}</li>`).join('')}</ul>`;
+            }).join('');
         }).catch(() => { el.textContent = 'Failed to load changelog.'; });
     }
 
@@ -6575,7 +6674,10 @@ class LevelEditor {
         };
         if (scheme === 'default') {
             if (window.monaco) monaco.editor.setTheme('graal-default');
-            document.body.style.background = ''; document.body.style.color = ''; localStorage.setItem('editorColorScheme', scheme); this._updateSchemeDropdown(scheme); return;
+            document.body.style.background = ''; document.body.style.color = '';
+            const tb = document.getElementById('tauriBar'); if (tb) { tb.style.background = ''; tb.style.borderColor = ''; }
+            this._schemeColors = null;
+            localStorage.setItem('editorColorScheme', scheme); this._updateSchemeDropdown(scheme); return;
         }
         const c = schemes[scheme];
         if (!c) return;
@@ -6587,7 +6689,7 @@ class LevelEditor {
         s.id = 'colorSchemeStyle';
         s.textContent = `
             body, .main-container, .content-area { background: ${c.bg} !important; color: ${c.text} !important; }
-            .toolbar, .level-toolbar, .tileset-toolbar, .tile-selection-toolbar, .canvas-controls, .canvas-controls-bar { background: ${c.panel} !important; border-color: ${c.border} !important; }
+            .toolbar, .level-toolbar, .tileset-toolbar, .tile-selection-toolbar, .canvas-controls-bar { background: ${c.panel} !important; border-color: ${c.border} !important; }
             .left-panel, .right-panel { background: ${c.panel} !important; }
             .tabs { background: ${c.panel} !important; }
             .tab { background: transparent !important; color: ${c.text} !important; opacity: 0.6; }
@@ -6644,22 +6746,32 @@ class LevelEditor {
             .ed-dialog-box button:not(#npcSave) { background: ${bBg} !important; color: ${bTxt} !important; border-color: ${c.border} !important; }
             .ed-dialog-box button:not(#npcSave):hover { background: ${bHov} !important; }
             .ed-dialog-box div[style*="background:#353535"], .ed-dialog-box div[style*="background: #353535"] { background: ${c.hover} !important; color: ${c.text} !important; }
-            .ed-dlg-title { background: ${c.hover} !important; color: ${c.text} !important; }
+            .ed-dlg-title, ._udlg-title { background: ${c.hover} !important; color: ${c.text} !important; }
             .ed-dialog-box .ed-dlg-title { padding: 8px 12px !important; margin: -16px -20px 12px -20px !important; font-weight: bold !important; font-size: 13px !important; }
             .ed-dialog-box div[style*="background:#1e1e1e"] { background: ${c.bg} !important; }
             .ed-dialog-box div[style*="background:#111"] { background: ${c.bg} !important; }
             #npcTitlebar > span { color: ${c.text} !important; }
             .ed-dialog-box div[style*="color:#aaa"], .ed-dialog-box th[style*="color:#aaa"] { color: ${c.text} !important; opacity: 0.6; }
             .ed-dialog-box td, .ed-dialog-box th { border-color: ${c.border} !important; color: ${c.text} !important; }
+            .ed-dialog-box table { border-color: ${c.border} !important; }
+            .ed-dialog-box thead tr { background: ${c.hover} !important; }
+            .ed-dialog-box thead th { background: ${c.hover} !important; color: ${c.text} !important; border-color: ${c.border} !important; }
+            .ed-dialog-box tbody tr:nth-child(even) { background: ${c.bg} !important; }
+            .ed-dialog-box tbody tr:nth-child(odd) { background: ${c.panel} !important; }
+            .ed-dialog-box tbody td { background: transparent !important; }
             #npcTestOutput { background: ${c.bg} !important; border-color: ${c.border} !important; }
             #npcImgDropdown { background: ${c.panel} !important; border-color: ${c.border} !important; }
             #npcImgDropdown div { color: ${c.text} !important; }
             #npcImgDropdown div:hover { background: ${c.hover} !important; }
             .tab-panel { background: ${c.bg} !important; }
-            #aboutDialog > div { background: ${c.panel} !important; border-color: ${c.border} !important; }
-            #aboutDialog { color: ${c.text} !important; }
+            #infoDialog > div { background: ${c.panel} !important; border-color: ${c.border} !important; }
+            #infoDialog { color: ${c.text} !important; }
             #aboutTabAbout, #aboutTabChangelog { background: ${c.bg} !important; color: ${c.text} !important; }
             #aboutTabAbout a, #aboutTabChangelog a { color: #4a9eff !important; }
+            #aboutClose { background: ${bBg} !important; color: ${bTxt} !important; border-color: ${c.border} !important; }
+            #aboutClose:hover { background: ${bHov} !important; }
+            .info-tab-btn { color: ${c.text} !important; border-color: ${c.border} !important; }
+            .info-tab-btn.active { color: ${c.text} !important; background: ${c.panel} !important; }
             #colorSchemeDropdown { background: ${c.panel} !important; border-color: ${c.border} !important; }
             .color-scheme-item { color: ${c.text} !important; border-color: ${c.border} !important; }
             .color-scheme-item:hover { background: ${c.hover} !important; }
@@ -6680,6 +6792,43 @@ class LevelEditor {
             #npcTitlebar { background: ${c.hover} !important; }
             #npcMonacoContainer, .monaco-editor, .monaco-editor-background, .monaco-editor .margin { background: ${c.bg} !important; }
             #elTitlebar, #esTitlebar, #signTitlebar, #lkTitlebar, #chTitlebar, #bdTitlebar { background: ${c.hover} !important; color: ${c.text} !important; }
+            #tauriBar { background: ${c.panel} !important; border-color: ${c.border} !important; }
+            #tauriBar button { background: transparent !important; color: ${c.text} !important; border-color: transparent !important; }
+            #tauriBar button:hover { background: ${c.hover} !important; }
+            #tauriBar .tb-title span { color: ${c.text} !important; }
+            .tool-button.active { background: #4a9eff !important; color: #fff !important; border-color: #2a7eff !important; }
+            .tool-button.active:hover { background: #5aaeff !important; }
+            #layers-tab > div:first-child { background: ${c.hover} !important; border-color: ${c.border} !important; }
+            #btnAddLayer, #btnDeleteLayer { background: ${bBg} !important; color: ${bTxt} !important; border-color: ${c.border} !important; }
+            #btnAddLayer:hover, #btnDeleteLayer:hover { background: ${bHov} !important; }
+            #zoomSlider { accent-color: #4a9eff !important; }
+            #zoomSlider::-webkit-slider-runnable-track { background: ${c.border} !important; box-shadow: none !important; }
+            #zoomSlider::-moz-range-track { background: ${c.border} !important; box-shadow: none !important; }
+            #zoomSlider::-webkit-slider-thumb { background: ${c.panel} !important; box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important; border: 1px solid ${c.border} !important; }
+            #zoomSlider::-moz-range-thumb { background: ${c.panel} !important; box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important; border: 1px solid ${c.border} !important; }
+            #tilesetZoomSlider::-webkit-slider-runnable-track { background: ${c.border} !important; box-shadow: none !important; }
+            #tilesetZoomSlider::-moz-range-track { background: ${c.border} !important; box-shadow: none !important; }
+            #tilesetZoomSlider::-webkit-slider-thumb { background: ${c.panel} !important; box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important; border: 1px solid ${c.border} !important; }
+            #tilesetZoomSlider::-moz-range-thumb { background: ${c.panel} !important; box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important; border: 1px solid ${c.border} !important; }
+            .tileset-display { background: ${c.bg} !important; scrollbar-color: ${c.hover} ${c.bg} !important; }
+            .tileset-display::-webkit-scrollbar-track { background: ${c.bg} !important; }
+            .tileset-display::-webkit-scrollbar-thumb { background: ${c.hover} !important; }
+            .tileset-display::-webkit-scrollbar-thumb:hover { background: ${bBg} !important; }
+            #_ss2Dialog > div { background: ${c.bg} !important; border-color: ${c.border} !important; }
+            #_ss2Drag { background: ${c.hover} !important; border-color: ${c.border} !important; }
+            #_ss2Drag span, #_ss2Drag button { color: ${c.text} !important; }
+            #_ss2Dialog button { background: ${bBg} !important; color: ${bTxt} !important; border-color: ${c.border} !important; }
+            #_ss2Dialog button:hover { background: ${bHov} !important; }
+            #_ss2Dialog textarea { background: ${c.bg} !important; color: ${c.text} !important; border-color: ${c.border} !important; }
+            #_ss2Dialog [data-ss2="picker"] { background: ${c.panel} !important; }
+            #_gmgInner { background: ${c.panel} !important; border-color: ${c.border} !important; }
+            #_gmgDrag { background: ${c.hover} !important; border-color: ${c.border} !important; }
+            #_gmgDrag span, #_gmgDrag button { color: ${c.text} !important; }
+            #_gmgDialog button { background: ${bBg} !important; color: ${bTxt} !important; border-color: ${c.border} !important; }
+            #_gmgDialog button:hover { background: ${bHov} !important; }
+            #_gmgDialog input, #_gmgDialog select { background: ${c.bg} !important; color: ${c.text} !important; border-color: ${c.border} !important; }
+            #_gmgDialog label { color: ${c.text} !important; }
+            #_gmgDialog div[style*="background:#1e1e1e"], #_gmgDialog div[style*="background: #1e1e1e"] { background: ${c.bg} !important; }
         `;
         document.head.appendChild(s);
         if (window.monaco) {
@@ -6693,10 +6842,20 @@ class LevelEditor {
                     { token: 'keyword.builtin', foreground: 'be84ff' },
                     { token: 'function.call', foreground: 'a6e22b' },
                 ],
-                colors: { 'editor.background': c.bg, 'editor.foreground': c.text }
+                colors: {
+                    'editor.background': c.bg, 'editor.foreground': c.text,
+                    'editorSuggestWidget.background': c.panel, 'editorSuggestWidget.border': c.border,
+                    'editorSuggestWidget.foreground': c.text, 'editorSuggestWidget.selectedBackground': c.hover,
+                    'editorSuggestWidget.highlightForeground': '#4a9eff',
+                    'editorHoverWidget.background': c.panel, 'editorHoverWidget.border': c.border,
+                    'editorWidget.background': c.panel, 'editorWidget.border': c.border,
+                    'list.hoverBackground': c.hover, 'list.activeSelectionBackground': c.hover,
+                    'list.activeSelectionForeground': c.text, 'list.focusBackground': c.hover
+                }
             });
             monaco.editor.setTheme('graal-active');
         }
+        this._schemeColors = c;
         localStorage.setItem('editorColorScheme', scheme);
         this._updateSchemeDropdown(scheme);
     }
