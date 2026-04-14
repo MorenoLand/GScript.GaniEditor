@@ -306,8 +306,14 @@ button:active { background:#1a1a1a !important; border-color:#0a0a0a !important; 
 .tile-selection-toolbar button:hover { background:#404040; border-color:#555; }
 .tile-selection-toolbar button:active { background:#1a1a1a; border-color:#0a0a0a; box-shadow:inset 0 1px 2px rgba(0,0,0,0.5); }
 .tileset-zoom-group { display:flex; align-items:center; gap:8px; margin:0 auto; }
-.selected-tile-display { margin-left:auto; padding:2px; background:#1a1a1a; border:1px solid #555; }
-#selectedTileCanvas { display:block; cursor:pointer; }
+.selected-tile-display { margin-left:auto; padding:0; background:transparent; border:none; width:42px; height:32px; display:flex; align-items:center; justify-content:center; }
+.selected-tile-stack { position:relative; width:36px; height:26px; }
+.selected-tile-canvas { position:absolute; display:block; cursor:pointer; width:16px; height:16px; border:1px solid #404040; background:#000; box-shadow:0 1px 0 rgba(255,255,255,0.06); }
+.selected-tile-canvas.secondary { left:1px; bottom:1px; opacity:0.95; }
+.selected-tile-canvas.primary { right:1px; top:1px; z-index:2; border-color:#d8d8d8; box-shadow:0 0 0 1px #0a0a0a, 0 0 0 2px #d8d8d8; }
+#secondaryTileCanvas:hover { border-color:#9a9a9a; }
+#btnSwapSelectedTiles { position:absolute; right:-2px; bottom:-2px; width:14px; height:14px; min-width:14px; padding:0; display:flex; align-items:center; justify-content:center; z-index:3; font-size:9px; }
+#btnSwapSelectedTiles i { width:10px; height:10px; }
 .right-tabs { display:flex; flex-direction:row-reverse; width:300px; min-width:50px; background:#2b2b2b; flex-shrink:0; }
 .right-tabs .tab-bar { background:#353535; border-left:1px solid #1a1a1a; display:flex; flex-direction:column; gap:2px; padding:2px; flex-shrink:0; }
 .right-tabs .tab-bar .tab { writing-mode:vertical-rl; transform:rotate(180deg); white-space:nowrap; padding:10px 5px; max-width:none; }
@@ -422,6 +428,8 @@ body.tauri-app #tauriBar { display:flex; }
 .tb-winbtn.tb-close:hover { background:#c42b1c; color:#fff; }
 .dialog-content { background:#2b2b2b; color:#e0e0e0; }
 .dialog-titlebar { background:#1e1e1e; border-bottom:2px solid #0a0a0a; flex-shrink:0; }
+.dialog-checkbox-row { display:flex; align-items:center; justify-content:center; gap:8px; margin:0 0 16px; cursor:pointer; font-family:"chevyray",monospace; font-size:11px; color:#e0e0e0; user-select:none; }
+.dialog-checkbox { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; background:#1a1a1a; border:1px solid #0a0a0a; border-top:1px solid #404040; border-left:1px solid #404040; color:#e0e0e0; line-height:1; font-size:12px; flex-shrink:0; }
 .info-tab-btn,.settings-tab-btn,.defaultOpen-tab-btn { background:transparent; border:none; border-left:1px solid #0a0a0a; padding:10px 16px; cursor:pointer; font-family:'chevyray',monospace; font-size:12px; color:#888; user-select:none; -webkit-user-select:none; -moz-user-select:none; }
 .info-tab-btn.active,.settings-tab-btn.active,.defaultOpen-tab-btn.active { color:#4a9eff; background:#252525; }
 .info-tab-btn:hover,.settings-tab-btn:hover,.defaultOpen-tab-btn:hover { color:#ccc; background:rgba(255,255,255,0.05); }
@@ -434,5 +442,5 @@ body.tauri-app #tauriBar { display:flex; }
 #spriteSplitterHandle .splitter-grip { pointer-events:none; }
 #historyList { background:#1a1a1a; padding:4px; border:1px solid #555; font-size:12px; font-family:'chevyray',monospace; user-select:none; -webkit-user-select:none; }
 #defaultOpenContent { background:#353535; }
-#infoClose,#settingsDefaults,#settingsReset,#settingsCancel,#settingsOK,#defaultOpenCancel { background:#1a1a1a; color:#ffffff; border:1px solid #0a0a0a; border-top:1px solid #404040; border-left:1px solid #404040; cursor:pointer; font-family:'chevyray',monospace; font-size:12px; }
-#infoClose:hover,#settingsDefaults:hover,#settingsReset:hover,#settingsCancel:hover,#settingsOK:hover,#defaultOpenCancel:hover { background:#2b2b2b !important; border-color:#555 !important; }
+#infoClose,#settingsDefaults,#settingsReset,#settingsCancel,#settingsOK,#defaultOpenCancel,#sharedConfirmYes,#sharedConfirmNo { background:#1a1a1a; color:#ffffff; border:1px solid #0a0a0a; border-top:1px solid #404040; border-left:1px solid #404040; cursor:pointer; font-family:'chevyray',monospace; font-size:12px; }
+#infoClose:hover,#settingsDefaults:hover,#settingsReset:hover,#settingsCancel:hover,#settingsOK:hover,#defaultOpenCancel:hover,#sharedConfirmYes:hover,#sharedConfirmNo:hover { background:#2b2b2b !important; border-color:#555 !important; }

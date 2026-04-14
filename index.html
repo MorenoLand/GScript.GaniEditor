@@ -82,6 +82,24 @@
         </div>
     </div>
 </div>
+<div id="sharedConfirmDialog" class="dialog-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:transparent;z-index:10001;justify-content:center;align-items:center;">
+    <div class="dialog-content" style="border:2px solid #1a1a1a;padding:0 20px 20px;width:400px;max-width:90vw;display:flex;flex-direction:column;box-shadow:0 4px 12px rgba(0,0,0,0.8);">
+        <div class="dialog-titlebar" style="margin:0 -20px 16px;padding:8px 14px;display:flex;align-items:center;gap:8px;">
+            <i class="fas fa-exclamation-circle"></i>
+            <span id="sharedConfirmTitle" style="font-family:'chevyray',monospace;font-size:13px;color:#c0c0c0;user-select:none;">Confirm</span>
+        </div>
+        <div id="sharedConfirmMessage" style="margin-bottom:16px;white-space:pre-wrap;text-align:center;font-family:'chevyray',monospace;font-size:12px;color:#e0e0e0;line-height:1.6;"></div>
+        <label id="sharedConfirmClearRow" class="dialog-checkbox-row" style="display:none;">
+            <span id="sharedConfirmClearBox" class="dialog-checkbox" aria-hidden="true"></span>
+            <input id="sharedConfirmClearInput" type="checkbox" style="display:none;">
+            <span>Also clear all localStorage data</span>
+        </label>
+        <div style="display:flex;gap:10px;justify-content:center;">
+            <button id="sharedConfirmYes" style="padding:6px 18px;">Yes</button>
+            <button id="sharedConfirmNo" style="padding:6px 18px;">No</button>
+        </div>
+    </div>
+</div>
 <script>
 (function() {
     const _isTauri = !!window.__TAURI__;
@@ -136,6 +154,56 @@
         document.getElementById('defaultOpenCancel').onclick = () => { _defaultDlg.style.display = 'none'; };
         _defaultDlg.onclick = e => { if (e.target === _defaultDlg) _defaultDlg.style.display = 'none'; };
         document.querySelectorAll('.defaultOpen-tab-btn').forEach(btn => { btn.onclick = () => window.openDefaultDialog(btn.dataset.tab); });
+        const sharedConfirmDialog = document.getElementById('sharedConfirmDialog');
+        const sharedConfirmTitle = document.getElementById('sharedConfirmTitle');
+        const sharedConfirmMessage = document.getElementById('sharedConfirmMessage');
+        const sharedConfirmClearRow = document.getElementById('sharedConfirmClearRow');
+        const sharedConfirmClearInput = document.getElementById('sharedConfirmClearInput');
+        const sharedConfirmClearBox = document.getElementById('sharedConfirmClearBox');
+        const sharedConfirmYes = document.getElementById('sharedConfirmYes');
+        const sharedConfirmNo = document.getElementById('sharedConfirmNo');
+        let sharedConfirmResolve = null;
+        const syncSharedConfirmCheckbox = () => {
+            if (sharedConfirmClearBox) sharedConfirmClearBox.textContent = sharedConfirmClearInput?.checked ? '✓' : '';
+        };
+        const closeSharedConfirm = (confirmed) => {
+            if (!sharedConfirmDialog) return;
+            sharedConfirmDialog.style.display = 'none';
+            const result = {
+                confirmed,
+                clearStorage: !!sharedConfirmClearInput?.checked
+            };
+            const resolve = sharedConfirmResolve;
+            sharedConfirmResolve = null;
+            if (sharedConfirmClearInput) sharedConfirmClearInput.checked = false;
+            syncSharedConfirmCheckbox();
+            if (resolve) resolve(result);
+        };
+        if (sharedConfirmClearRow && sharedConfirmClearInput) {
+            sharedConfirmClearRow.onclick = () => {
+                sharedConfirmClearInput.checked = !sharedConfirmClearInput.checked;
+                syncSharedConfirmCheckbox();
+            };
+            syncSharedConfirmCheckbox();
+        }
+        if (sharedConfirmYes) sharedConfirmYes.onclick = () => closeSharedConfirm(true);
+        if (sharedConfirmNo) sharedConfirmNo.onclick = () => closeSharedConfirm(false);
+        if (sharedConfirmDialog) {
+            sharedConfirmDialog.onclick = e => { if (e.target === sharedConfirmDialog) closeSharedConfirm(false); };
+            sharedConfirmDialog._closeModal = () => closeSharedConfirm(false);
+        }
+        window.openSharedConfirmDialog = ({ title = 'Confirm', message = '', showClearStorage = false } = {}) => {
+            if (!sharedConfirmDialog) return Promise.resolve({ confirmed: false, clearStorage: false });
+            sharedConfirmTitle.textContent = title;
+            sharedConfirmMessage.textContent = message;
+            sharedConfirmClearRow.style.display = showClearStorage ? 'flex' : 'none';
+            sharedConfirmClearInput.checked = false;
+            syncSharedConfirmCheckbox();
+            sharedConfirmDialog.style.display = 'flex';
+            return new Promise(resolve => {
+                sharedConfirmResolve = resolve;
+            });
+        };
         document.addEventListener('click', e => {
             const btn = e.target.closest('#level-btnLevelCollab');
             const drop = document.getElementById('level-levelCollabDropdown');
@@ -307,6 +375,9 @@
         s.id = '_aniScript';
         s.src = 'js/anieditor.js';
         s.onload = () => {
+            if (typeof window.__ganiPostLoadInit === 'function') {
+                window.__ganiPostLoadInit();
+            }
             window.dispatchEvent(new Event('load'));
             setTimeout(() => {
                 ['tabScrollLeft','tabsContainer','tabScrollRight'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
@@ -1046,7 +1117,11 @@
                                     <span id="tilesetZoomLabel" style="font-size:11px;color:#9a9a9e;font-family:chevyray,monospace;min-width:28px;">2x</span>
                                 </div>
                                 <div class="selected-tile-display" style="margin-left:auto;">
-                                    <canvas id="selectedTileCanvas" width="16" height="16"></canvas>
+                                    <div class="selected-tile-stack">
+                                        <canvas id="secondaryTileCanvas" class="selected-tile-canvas secondary" width="16" height="16" title="Secondary Tile"></canvas>
+                                        <canvas id="selectedTileCanvas" class="selected-tile-canvas primary" width="16" height="16" title="Primary Tile"></canvas>
+                                        <button title="Swap Primary and Secondary Tiles" id="btnSwapSelectedTiles"><i class="fas fa-exchange-alt"></i></button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

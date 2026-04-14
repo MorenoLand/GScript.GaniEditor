@@ -4582,12 +4582,13 @@ function addTab(ani, fileName = "") {
     switchTab(animations.length - 1);
     updateUIVisibility();
     const mainCanvas = document.getElementById('gani-mainCanvas');
-    saveSession();
+    saveSession(true);
     const tryAddTab = () => {
         const listEl = document.getElementById('suiteTabsList');
         if (window.tabManager && typeof tabManager.addTab === 'function' && listEl) {
             const name = fileName || ani.fileName || 'Untitled.gani';
             tabManager.addTab('gani', name, { ani, index: animations.length - 1 });
+            saveSession(true);
             requestAnimationFrame(() => { resizeCanvas(); redraw(); });
         } else {
             setTimeout(tryAddTab, 50);
@@ -4629,7 +4630,7 @@ function closeTab(index) {
         if (currentTabIndex < 0) currentTabIndex = 0;
         switchTab(currentTabIndex);
     }
-    saveSession();
+    saveSession(true);
 }
 
 function updateUIVisibility() {
@@ -4814,7 +4815,7 @@ function handleTabDrop(sourceIndex) {
         currentTabIndex++;
     }
     updateTabs();
-    saveSession();
+    saveSession(true);
 }
 
 function showTabContextMenu(e, tabIndex) {
@@ -4864,6 +4865,32 @@ function showTabContextMenu(e, tabIndex) {
 }
 
 let saveSessionDebounceTimer = null;
+function syncSharedGaniTabs() {
+    try {
+        let existing = [];
+        try {
+            const raw = localStorage.getItem("graalSuiteTabs");
+            const parsed = raw ? JSON.parse(raw) : [];
+            if (Array.isArray(parsed)) existing = parsed;
+        } catch (e) {}
+        const nonGaniTabs = existing.filter(tab => tab?.type !== "gani");
+        const ganiTabs = animations.map((ani, idx) => ({
+            type: "gani",
+            name: ani.fileName || "Untitled.gani",
+            data: {
+                index: idx,
+                id: ani.id || null,
+                fileName: ani.fileName || "Untitled.gani",
+                fullPath: ani.fullPath || ""
+            }
+        }));
+        const merged = [...nonGaniTabs, ...ganiTabs];
+        if (merged.length) localStorage.setItem("graalSuiteTabs", JSON.stringify(merged));
+        else localStorage.removeItem("graalSuiteTabs");
+    } catch (e) {
+        console.error("Failed to sync shared gani tabs:", e);
+    }
+}
 function saveSession(immediate = false) {
     if (DEBUG_MODE) f12Log(`saveSession called with immediate=${immediate}`);
     if (isRestoringGaniSession) return;
@@ -4875,14 +4902,17 @@ function saveSession(immediate = false) {
         try {
             if (!animations.length) {
                 localStorage.removeItem("ganiEditorSession");
+                syncSharedGaniTabs();
                 return;
             }
             const session = {
                 animations: animations.map((ani, idx) => {
                     const content = saveGani(ani);
+                    const sharedTab = window.tabManager?.getTabsByType?.('gani')?.find?.(tab => tab.data?.ani === ani) || null;
+                    const effectiveName = ani.fileName || sharedTab?.name || "Untitled.gani";
                     f12Log(`Saving animation ${ani.fileName || 'unnamed'} at index ${idx}: ${ani.frames.length} frames`);
                     return {
-                        fileName: ani.fileName,
+                        fileName: effectiveName,
                         fullPath: ani.fullPath,
                         modified: ani.modified,
                         id: ani.id,
@@ -4894,6 +4924,7 @@ function saveSession(immediate = false) {
                 backgroundColor: backgroundColor,
                 keysSwapped: keysSwapped
             };
+            syncSharedGaniTabs();
             localStorage.setItem("ganiEditorSession", JSON.stringify(session));
         } catch (e) {
             console.error("Failed to save session:", e);
@@ -4910,18 +4941,7 @@ async function restoreSession() {
     try {
         const sessionData = localStorage.getItem("ganiEditorSession");
         if (!sessionData) return false;
-        const sharedTabsRaw = localStorage.getItem("graalSuiteTabs");
-        if (!sharedTabsRaw) return false;
         const session = JSON.parse(sessionData);
-        let allowedSharedTabs = [];
-        try {
-            const parsedSharedTabs = JSON.parse(sharedTabsRaw);
-            if (!Array.isArray(parsedSharedTabs) || !parsedSharedTabs.length) return false;
-            allowedSharedTabs = parsedSharedTabs.filter(t => t?.type === "gani");
-            if (!allowedSharedTabs.length) return false;
-        } catch (e) {
-            return false;
-        }
         const restoredCurrentTabIndex = Math.max(0, session.currentTabIndex || 0);
         if (session.workingDirectory) {
             workingDirectory = session.workingDirectory;
@@ -4941,16 +4961,6 @@ async function restoreSession() {
                 const tip = keysSwapped ? "Arrows=Direction, WASD=Move — click to restore" : "WASD=Direction, Arrows=Move — click to swap";
                 if (_btn.hasAttribute("data-title")) _btn.dataset.title = tip; else _btn.title = tip;
             }
-        }
-        if (session.animations && session.animations.length > 0) {
-            const allowedByPath = new Set(allowedSharedTabs.map(t => t?.data?.fullPath).filter(Boolean));
-            const allowedByName = new Set(allowedSharedTabs.map(t => t?.data?.fileName || t?.name).filter(Boolean));
-            session.animations = session.animations.filter(aniData => {
-                if (!aniData) return false;
-                if (aniData.fullPath && allowedByPath.has(aniData.fullPath)) return true;
-                const name = aniData.fileName || "";
-                return !!name && allowedByName.has(name);
-            });
         }
         if (session.animations && session.animations.length > 0) {
             animations = [];
@@ -5063,6 +5073,16 @@ async function restoreSession() {
 window.addEventListener("beforeunload", () => {
     saveCurrentFrame();
     saveSession(true);
+});
+window.addEventListener("pagehide", () => {
+    saveCurrentFrame();
+    saveSession(true);
+});
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+        saveCurrentFrame();
+        saveSession(true);
+    }
 });
 setInterval(() => {
     if (animations.length > 0) {
@@ -5295,7 +5315,9 @@ function createMonacoEditor(container, value, language) {
     }) : Promise.resolve(null);
 }
 
-window.addEventListener("load", async () => {
+async function initGaniEditorStartup() {
+    if (window.__ganiEditorStartupDone) return;
+    window.__ganiEditorStartupDone = true;
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
     const criticalImages = ["sprites.png", "body.png", "head19.png", "shield1.png"];
@@ -6310,7 +6332,7 @@ window.addEventListener("load", async () => {
             });
             updateSpriteEditor();
             redraw();
-            saveSession();
+            saveSession(true);
         }
     };
     $("spriteImage").onchange = (e) => {
@@ -6561,7 +6583,7 @@ window.addEventListener("load", async () => {
         });
         redraw();
         drawSpritePreview();
-        saveSession();
+        saveSession(true);
     };
     const updateColorFromRGB = () => {
         const targets = getSpriteEditorTargets();
@@ -6598,7 +6620,7 @@ window.addEventListener("load", async () => {
         redraw();
         drawSpritePreview();
         updateSpritesList();
-        saveSession();
+        saveSession(true);
     };
     if ($("colorR")) $("colorR").onchange = updateColorFromRGB;
     if ($("colorG")) $("colorG").onchange = updateColorFromRGB;
@@ -8293,6 +8315,9 @@ window.addEventListener("load", async () => {
         if (scheme === "default") {
             const oldStyle = $("colorSchemeStyle");
             if (oldStyle) oldStyle.remove();
+            const customTag = $("customUserCSS");
+            if (customTag) customTag.remove();
+            localStorage.removeItem("gsuite_customCSS");
             document.body.style.background = "";
             document.body.style.color = "";
             const _tb = $('tauriBar'); if (_tb) { _tb.style.background = ''; _tb.style.borderColor = ''; }
@@ -8776,9 +8801,6 @@ window.addEventListener("load", async () => {
             item.onclick = (e) => {
                 e.stopPropagation();
                 const scheme = item.getAttribute("data-scheme");
-                const customTag = $("customUserCSS");
-                if (customTag) customTag.textContent = "";
-                localStorage.removeItem("gsuite_customCSS");
                 applyColorScheme(scheme);
                 const schemes = {
                     "fusion-light": { hover: "#e8e8e8" },
@@ -8878,6 +8900,14 @@ window.addEventListener("load", async () => {
         });
         const applyCSS = () => {
             const css = getValue();
+            if (!css.trim()) {
+                const tag = $("customUserCSS");
+                if (tag) tag.remove();
+                localStorage.removeItem("gsuite_customCSS");
+                applyColorScheme(localStorage.getItem("editorColorScheme") || "default");
+                requestAnimationFrame(syncCanvasBgFromCSS);
+                return;
+            }
             let tag = $("customUserCSS");
             if (!tag) { tag = document.createElement("style"); tag.id = "customUserCSS"; document.head.appendChild(tag); }
             tag.textContent = css;
@@ -8890,8 +8920,10 @@ window.addEventListener("load", async () => {
         overlay.querySelector("#cssClear").onclick = () => {
             setValue("");
             const tag = $("customUserCSS");
-            if (tag) tag.textContent = "";
+            if (tag) tag.remove();
             localStorage.removeItem("gsuite_customCSS");
+            applyColorScheme(localStorage.getItem("editorColorScheme") || "default");
+            requestAnimationFrame(syncCanvasBgFromCSS);
         };
         overlay.querySelector("#cssImport").onclick = () => {
             const input = document.createElement("input");
@@ -12017,7 +12049,13 @@ ${editableActions.map(a => kbRow(a.label, a.key)).join("")}
         lastTouchIdentifier = null;
         redraw();
     }, {passive: false});
-}, { once: true });
+}
+window.__ganiPostLoadInit = initGaniEditorStartup;
+if (document.readyState === "complete") {
+    initGaniEditorStartup();
+} else {
+    window.addEventListener("load", initGaniEditorStartup, { once: true });
+}
 
 let lastPlayedFrame = -1;
 function playAnimation() {
@@ -12537,6 +12575,12 @@ function getColorSchemeColors() {
     return schemes[scheme] || schemes["default"];
 }
 function showConfirmDialog(message, callback, showClearStorage = false) {
+    if (typeof window.openSharedConfirmDialog === "function") {
+        window.openSharedConfirmDialog({ title: "Confirm", message, showClearStorage }).then(result => {
+            callback(!!result?.confirmed, !!result?.clearStorage);
+        });
+        return;
+    }
     const colors = getColorSchemeColors();
     const currentFont = localStorage.getItem("editorFont") || "chevyray";
     const fontFamily = getFontFamily(currentFont);

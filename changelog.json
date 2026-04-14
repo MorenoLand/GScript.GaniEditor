@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.1.44",
+    "date": "2026-04-14",
+    "tag": "GSuite",
+    "changes": [
+      "Level editor tile selection Delete now fills with the current dropper preview tile instead of clearing to empty",
+      "Moving a tile selection now backfills the original area with the current dropper preview tile and preserves captured tile values more reliably",
+      "Resizing a level tile selection smaller now previews the tile content shrinking with the box instead of leaving the old outer tiles visually behind",
+      "Cutting a level tile selection now leaves the current dropper preview tile behind instead of hard-clearing to tile 0/empty",
+      "Refresh Tileset now invalidates cached tileset image data before reloading so file changes are picked up more reliably",
+      "Level editor now has rebindable one-key tool shortcuts for Select, Draw, Erase, and Flood Fill, and those tool button tooltips show the current bound key",
+      "Editor color scheme and custom CSS now persist cleanly across restart without being wiped when the theme reapplies on startup",
+      "Switching back to the default theme or applying empty custom CSS now fully clears the live custom stylesheet instead of leaving stale overrides behind"
+    ]
+  },
+  {
     "version": "0.1.43",
     "date": "2026-04-13",
     "tag": "GSuite",

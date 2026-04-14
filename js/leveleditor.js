@@ -6,6 +6,7 @@ var _tauri = _isTauri ? window.__TAURI__ : null;
 const _DEFAULT_KB = {
     undo:'ctrl+z', redo:'ctrl+y', save:'ctrl+s', copy:'ctrl+c', cut:'ctrl+x', paste:'ctrl+v',
     delete:'Delete', playMode:'F4', about:'F1', settings:'F2',
+    selectTool:'s', drawTool:'d', eraseTool:'e', fillTool:'f',
     openChat:'Enter', debugInfo:'1', debugOverlay:'2', editBypass:'3', grab:'e',
 };
 function _matchKB(e, b) {
@@ -473,6 +474,7 @@ class LevelEditor {
         this.level = new Level();
         this.selectedTile = -1;
         this.defaultTile = 0;
+        this.secondaryTile = 0;
         this.currentLayer = 0;
         this.floodFillEnabled = false;
         this.linkEditMode = false;
@@ -523,6 +525,11 @@ class LevelEditor {
         this.selectionEndX = -1;
         this.selectionEndY = -1;
         this.isSelecting = false;
+        this.pendingSelection = false;
+        this.pendingSelectionStartX = -1;
+        this.pendingSelectionStartY = -1;
+        this.pendingSelectionMouseX = 0;
+        this.pendingSelectionMouseY = 0;
         this.isMovingSelection = false;
         this.selectionOffsetX = 0;
         this.selectionOffsetY = 0;
@@ -836,10 +843,15 @@ class LevelEditor {
         this.$('btnLoadTileset').addEventListener('click', () => this.loadTileset());
         this.$('btnDeleteTileset').addEventListener('click', () => this.deleteTileset());
         this.$('btnEditTileset').addEventListener('click', () => this.editTileset());
+        this._updateToolButtonTooltips();
         const tzSlider = this.$('tilesetZoomSlider');
         const tzLabel = this.$('tilesetZoomLabel');
         if (tzSlider) { tzSlider.value = this.tilesetZoom; if (tzLabel) tzLabel.textContent = Math.round(this.tilesetZoom*100)/100 + 'x'; tzSlider.addEventListener('input', () => { this.tilesetZoom = parseFloat(tzSlider.value); if (tzLabel) tzLabel.textContent = Math.round(this.tilesetZoom*100)/100 + 'x'; localStorage.setItem('levelEditor_tilesetZoom', this.tilesetZoom); this.updateTilesetDisplay(); }); }
         this.$('selectedTileCanvas').addEventListener('dblclick', () => this.clearSelectedTile());
+        this.$('selectedTileCanvas').addEventListener('click', () => this.updateSelectedTileCanvas());
+        this.$('secondaryTileCanvas')?.addEventListener('click', () => this.swapSelectedTiles());
+        this.$('secondaryTileCanvas')?.addEventListener('dblclick', () => this.setSecondaryTile(0));
+        this.$('btnSwapSelectedTiles')?.addEventListener('click', () => this.swapSelectedTiles());
 
         this.$('btnGrid').addEventListener('click', () => this.toggleGrid());
         this.$('btnCenterView').addEventListener('click', () => this.centerView());
@@ -1148,6 +1160,23 @@ class LevelEditor {
         }
 
         if (e.button === 2) {
+            if (this.currentTool === 'draw' && coords.x >= 0 && coords.x < this.level.width && coords.y >= 0 && coords.y < this.level.height) {
+                const tileIndex = this.level.getTile(this.currentLayer, coords.x, coords.y);
+                if (tileIndex >= 0) {
+                    this.setPrimaryTile(tileIndex);
+                    this.selectedTile = tileIndex;
+                    this.selectedTilesetTiles = null;
+                    this.tilesetSelectionStartX = -1;
+                    this.tilesetSelectionStartY = -1;
+                    this.tilesetSelectionEndX = -1;
+                    this.tilesetSelectionEndY = -1;
+                    this.updateSelectedTileDisplay();
+                    this.updateTilesetDisplay();
+                    this.scrollTilesetToTile(tileIndex);
+                }
+                e.preventDefault();
+                return;
+            }
             const rObj = this.level.getObjectAt(coords.x, coords.y, (o, wx, wy) => this._npcPixelHit(o, wx, wy));
             if (rObj) {
                 if (rObj.type === 'npc' && !this._currentLevelIsZelda()) {
@@ -1223,6 +1252,17 @@ class LevelEditor {
             if (hitObj && hitObj.type === 'link' && !filterLinks) hitObj = null;
             if (hitObj && hitObj.type === 'sign' && !filterSigns) hitObj = null;
             if (hitObj && this.selectedObjectType !== 'delete') {
+                this.selectionStartX = -1;
+                this.selectionStartY = -1;
+                this.selectionEndX = -1;
+                this.selectionEndY = -1;
+                this.selectionTiles = null;
+                this.resizeOrigTiles = null;
+                this._floatingStamp = false;
+                this._floatingStampCanvas = false;
+                this._stampTilesLifted = false;
+                this.pendingSelection = false;
+                this.updateSelectionInfo();
                 const isMultiSelect = e.shiftKey || e.ctrlKey || e.metaKey;
                 if (isMultiSelect) {
                     this.toggleObjectSelection(hitObj);
@@ -1308,15 +1348,15 @@ class LevelEditor {
                 this.drawAt(coords.x, coords.y);
                 this.render();
             } else {
-                this.isSelecting = true;
-                this.selectionStartX = coords.x;
-                this.selectionStartY = coords.y;
-                this.selectionEndX = coords.x;
-                this.selectionEndY = coords.y;
+                this.pendingSelection = true;
+                this.pendingSelectionStartX = coords.x;
+                this.pendingSelectionStartY = coords.y;
+                this.pendingSelectionMouseX = e.clientX;
+                this.pendingSelectionMouseY = e.clientY;
+                this.isSelecting = false;
                 this.isDrawing = false;
                 this.isMovingSelection = false;
                 this.selectionTiles = null;
-                this.render();
             }
         }
     }
@@ -1342,8 +1382,19 @@ class LevelEditor {
         })[0] ?? null;
         if (!obj) {
             if (!this.hasSelection() && coords.x >= 0 && coords.x < this.level.width && coords.y >= 0 && coords.y < this.level.height) {
-                this.defaultTile = this.level.getTile(this.currentLayer, coords.x, coords.y);
-                this.updateSelectedTileCanvas();
+                const tileIndex = this.level.getTile(this.currentLayer, coords.x, coords.y);
+                if (tileIndex >= 0) {
+                    this.setPrimaryTile(tileIndex);
+                    this.selectedTile = tileIndex;
+                    this.selectedTilesetTiles = null;
+                    this.tilesetSelectionStartX = -1;
+                    this.tilesetSelectionStartY = -1;
+                    this.tilesetSelectionEndX = -1;
+                    this.tilesetSelectionEndY = -1;
+                    this.updateSelectedTileDisplay();
+                    this.updateTilesetDisplay();
+                    this.scrollTilesetToTile(tileIndex);
+                }
             }
             return;
         }
@@ -1406,6 +1457,20 @@ class LevelEditor {
         this.dragMouseY = e.clientY;
         this._lastMouseTileX = coords.x;
         this._lastMouseTileY = coords.y;
+        if (this.pendingSelection) {
+            const movedPixels = Math.abs(e.clientX - this.pendingSelectionMouseX) + Math.abs(e.clientY - this.pendingSelectionMouseY);
+            const movedTiles = coords.x !== this.pendingSelectionStartX || coords.y !== this.pendingSelectionStartY;
+            if (movedTiles || movedPixels >= 4) {
+                this.pendingSelection = false;
+                this.isSelecting = true;
+                this.selectionStartX = this.pendingSelectionStartX;
+                this.selectionStartY = this.pendingSelectionStartY;
+                this.selectionEndX = coords.x;
+                this.selectionEndY = coords.y;
+                this.updateSelectionInfo();
+                this.render();
+            }
+        }
         if (this.selectedTilesetTiles && !this.isDraggingTileSelection && !this.isDrawing && !this.isSelecting && !this.draggingObject) {
             this.requestRender();
         }
@@ -1591,6 +1656,11 @@ class LevelEditor {
         if (e.button === 0 && this.isDraggingFromTileset && this.isDrawing) {
             this.isDrawing = false;
         }
+        if (e.button === 0 && this.pendingSelection) {
+            this.pendingSelection = false;
+            this.pendingSelectionStartX = -1;
+            this.pendingSelectionStartY = -1;
+        }
         
         this.isDrawing = false;
         if (this.resizingLink) {
@@ -1603,7 +1673,10 @@ class LevelEditor {
         if (this.isResizingSelection) {
             this.isResizingSelection = false;
             this.resizeHandle = null;
-            if (this.selectionTiles && !this._floatingStamp) { this._floatingStamp = true; this._floatingStampCanvas = true; this._stampTilesLifted = false; }
+            if (this.selectionTiles) {
+                if (!this._floatingStamp) this.finalizeSelectionResize();
+                else { this._floatingStamp = true; this._floatingStampCanvas = true; }
+            }
             this.render();
         } else if (this.isMovingSelection && this.selectionTiles) {
             if (!this._floatingStamp || this._floatingStampCanvas) this.finalizeSelectionMove();
@@ -1786,6 +1859,8 @@ class LevelEditor {
             const about = this.$('infoDialog');
             if (about?.style.display === 'flex') { about.style.display = 'none'; return; }
         }
+        const _ae = document.activeElement;
+        const _typing = _ae && (_ae.tagName === 'INPUT' || _ae.tagName === 'TEXTAREA' || _ae.tagName === 'SELECT' || _ae.isContentEditable);
         const _kb = this._getKeybinds();
         if (_matchKB(e, _kb.about)) { e.preventDefault(); window.openInfoDialog?.('about'); return; }
         if (_matchKB(e, _kb.settings)) { e.preventDefault(); this.openSettingsDialog(); return; }
@@ -1800,6 +1875,18 @@ class LevelEditor {
         if (_matchKB(e, _kb.copy) && (this.hasObjectSelection() || this.hasSelection())) { e.preventDefault(); this._doCopy(); return; }
         if (_matchKB(e, _kb.cut) && (this.hasObjectSelection() || this.hasSelection())) { e.preventDefault(); this._doCut(); return; }
         if (_matchKB(e, _kb.paste) && (this._clipboardObjects?.length || this._clipboardTiles)) { e.preventDefault(); this._doPaste(); return; }
+        if (_typing) return;
+        if (_matchKB(e, _kb.selectTool)) { e.preventDefault(); this.objectMode = false; this.setTool('select'); return; }
+        if (_matchKB(e, _kb.drawTool)) { e.preventDefault(); this.setTool('draw'); return; }
+        if (_matchKB(e, _kb.fillTool)) {
+            e.preventDefault();
+            this.floodFillEnabled = true;
+            this.setTool('draw');
+            const fill = this.$('btnFillTool');
+            if (fill) fill.classList.add('active');
+            return;
+        }
+        if (_matchKB(e, _kb.eraseTool)) { e.preventDefault(); this.setTool('eraser'); return; }
     }
 
     _canvasRect() {
@@ -2164,9 +2251,10 @@ class LevelEditor {
         if (!this.hasSelection()) return;
         this._clipboardTiles = this._captureSelectionAsStamp();
         this.pushUndo();
+        const fillTile = this.defaultTile >= 0 ? this.defaultTile : 0;
         const sx = Math.min(this.selectionStartX, this.selectionEndX), sy = Math.min(this.selectionStartY, this.selectionEndY);
         const ex = Math.max(this.selectionStartX, this.selectionEndX), ey = Math.max(this.selectionStartY, this.selectionEndY);
-        for (let y = sy; y <= ey; y++) for (let x = sx; x <= ex; x++) this.level.setTile(this.currentLayer, x, y, -1);
+        for (let y = sy; y <= ey; y++) for (let x = sx; x <= ex; x++) this.level.setTile(this.currentLayer, x, y, fillTile);
         this.render(); this.saveSessionDebounced();
     }
     _doDelete() {
@@ -2178,7 +2266,15 @@ class LevelEditor {
             this.render();
             this.saveSessionDebounced();
         }
-        else if (this.hasSelection()) { this.pushUndo(); const sx = Math.min(this.selectionStartX, this.selectionEndX), sy = Math.min(this.selectionStartY, this.selectionEndY); const ex = Math.max(this.selectionStartX, this.selectionEndX), ey = Math.max(this.selectionStartY, this.selectionEndY); for (let y = sy; y <= ey; y++) for (let x = sx; x <= ex; x++) this.level.setTile(this.currentLayer, x, y, -1); this.render(); this.saveSessionDebounced(); }
+        else if (this.hasSelection()) {
+            this.pushUndo();
+            const fillTile = this.defaultTile >= 0 ? this.defaultTile : 0;
+            const sx = Math.min(this.selectionStartX, this.selectionEndX), sy = Math.min(this.selectionStartY, this.selectionEndY);
+            const ex = Math.max(this.selectionStartX, this.selectionEndX), ey = Math.max(this.selectionStartY, this.selectionEndY);
+            for (let y = sy; y <= ey; y++) for (let x = sx; x <= ex; x++) this.level.setTile(this.currentLayer, x, y, fillTile);
+            this.render();
+            this.saveSessionDebounced();
+        }
     }
 
     isObjectSelected(obj) {
@@ -2300,7 +2396,21 @@ class LevelEditor {
         if (!this._hitCanvas) { this._hitCanvas = document.createElement('canvas'); this._hitCanvas.width = 1; this._hitCanvas.height = 1; this._hitCtx = this._hitCanvas.getContext('2d', { willReadFrequently: true }); }
         this._hitCtx.clearRect(0, 0, 1, 1);
         this._hitCtx.drawImage(cached, px, py, 1, 1, 0, 0, 1, 1);
-        return this._hitCtx.getImageData(0, 0, 1, 1).data[3] > 10;
+        if (this._hitCtx.getImageData(0, 0, 1, 1).data[3] > 10) return true;
+        const tb = this._getTightBounds(obj);
+        if (!tb?.mask) return false;
+        const localX = px - (ip ? ip.x : 0);
+        const localY = py - (ip ? ip.y : 0);
+        const radius = 2;
+        for (let dy = -radius; dy <= radius; dy++) {
+            for (let dx = -radius; dx <= radius; dx++) {
+                const mx = localX + dx;
+                const my = localY + dy;
+                if (mx < tb.bx || my < tb.by || mx >= tb.bx + tb.bw || my >= tb.by + tb.bh) continue;
+                if (tb.mask[my * tb.srcW + mx]) return true;
+            }
+        }
+        return false;
     }
 
     _getLightCanvas(imgName, img, sx, sy, sw, sh) {
@@ -2412,9 +2522,9 @@ class LevelEditor {
                 const ty = startY + y;
                 if (tx >= 0 && tx < this.level.width && ty >= 0 && ty < this.level.height) {
                     const idx = ty * this.level.width + tx;
-                    row.push(layer.tiles[idx] || 0);
+                    row.push(layer.tiles[idx] ?? -1);
                 } else {
-                    row.push(0);
+                    row.push(-1);
                 }
             }
             this.selectionTiles.push(row);
@@ -2432,14 +2542,14 @@ class LevelEditor {
         const oldSX = this.originalSelectionX, oldSY = this.originalSelectionY;
         const layer = this.level.layers[this.currentLayer];
         if (!layer || !layer.tiles) return;
-        // Pass 1: erase old positions that don't overlap with new selection (only if tiles were actually lifted)
+        const fillTile = this.defaultTile >= 0 ? this.defaultTile : 0;
+        // Pass 1: backfill the full old area with the current dropper/preview tile before writing the moved snapshot
         if (this._stampTilesLifted) {
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
                     const ox = oldSX + x, oy = oldSY + y;
                     if (ox < 0 || ox >= this.level.width || oy < 0 || oy >= this.level.height) continue;
-                    if (ox < newSX || ox > newEX || oy < newSY || oy > newEY)
-                        layer.tiles[oy * this.level.width + ox] = this.defaultTile;
+                    layer.tiles[oy * this.level.width + ox] = fillTile;
                 }
             }
         }
@@ -2454,6 +2564,36 @@ class LevelEditor {
         }
         this.originalSelectionX = -1;
         this.originalSelectionY = -1;
+    }
+
+    finalizeSelectionResize() {
+        if (!this.selectionTiles || !this.hasSelection()) return;
+        const layer = this.level.layers[this.currentLayer];
+        if (!layer || !layer.tiles) return;
+        this.pushUndo();
+        const oldSX = Math.min(this.resizeStartSelectionX, this.resizeStartSelectionEndX);
+        const oldSY = Math.min(this.resizeStartSelectionY, this.resizeStartSelectionEndY);
+        const oldEX = Math.max(this.resizeStartSelectionX, this.resizeStartSelectionEndX);
+        const oldEY = Math.max(this.resizeStartSelectionY, this.resizeStartSelectionEndY);
+        const newSX = Math.min(this.selectionStartX, this.selectionEndX);
+        const newSY = Math.min(this.selectionStartY, this.selectionEndY);
+        const fillTile = this.defaultTile >= 0 ? this.defaultTile : 0;
+        for (let y = oldSY; y <= oldEY; y++) {
+            for (let x = oldSX; x <= oldEX; x++) {
+                if (x < 0 || x >= this.level.width || y < 0 || y >= this.level.height) continue;
+                layer.tiles[y * this.level.width + x] = fillTile;
+            }
+        }
+        for (let y = 0; y < this.selectionTiles.length; y++) {
+            for (let x = 0; x < (this.selectionTiles[y]?.length || 0); x++) {
+                const nx = newSX + x, ny = newSY + y;
+                if (nx < 0 || nx >= this.level.width || ny < 0 || ny >= this.level.height) continue;
+                if (this.selectionTiles[y][x] !== undefined) {
+                    layer.tiles[ny * this.level.width + nx] = this.selectionTiles[y][x];
+                }
+            }
+        }
+        this.saveSessionDebounced();
     }
 
     drawSelection() {
@@ -2489,6 +2629,24 @@ class LevelEditor {
         const tileWidth = this.level.tileWidth || 16;
         const tileHeight = this.level.tileHeight || 16;
         const tilesPerRow = Math.floor(this.level.tilesetImage.width / tileWidth);
+        if (this.isResizingSelection) {
+            const origStartX = Math.min(this.resizeStartSelectionX, this.resizeStartSelectionEndX);
+            const origStartY = Math.min(this.resizeStartSelectionY, this.resizeStartSelectionEndY);
+            const origEndX = Math.max(this.resizeStartSelectionX, this.resizeStartSelectionEndX);
+            const origEndY = Math.max(this.resizeStartSelectionY, this.resizeStartSelectionEndY);
+            const fillTile = this.defaultTile >= 0 ? this.defaultTile : 0;
+            const fillTileX = (fillTile % tilesPerRow) * tileWidth;
+            const fillTileY = Math.floor(fillTile / tilesPerRow) * tileHeight;
+            for (let y = origStartY; y <= origEndY; y++) {
+                for (let x = origStartX; x <= origEndX; x++) {
+                    this.ctx.drawImage(
+                        this.level.tilesetImage,
+                        fillTileX, fillTileY, tileWidth, tileHeight,
+                        x * tileWidth, y * tileHeight, tileWidth, tileHeight
+                    );
+                }
+            }
+        }
         this.ctx.globalAlpha = 0.7;
         for (let y = 0; y < this.selectionTiles.length; y++) {
             for (let x = 0; x < this.selectionTiles[y].length; x++) {
@@ -3039,9 +3197,9 @@ class LevelEditor {
 
                     if (x >= 0 && y >= 0 && x < tilesPerRow && y < Math.floor(this.level.tilesetImage.height / tileHeight)) {
                         const tileIndex = y * tilesPerRow + x;
-                        this.defaultTile = tileIndex;
-                        this.updateSelectedTileCanvas();
+                        this.setPrimaryTile(tileIndex);
                         this.updateTilesetDisplay();
+                        this.scrollTilesetToTile(tileIndex);
                     }
                 });
 
@@ -3086,8 +3244,7 @@ class LevelEditor {
                         const maxY = Math.floor(this.level.tilesetImage.height / tileHeight);
                         if (x >= 0 && y >= 0 && x < tilesPerRow && y < maxY) {
                             const tileIndex = y * tilesPerRow + x;
-                            this.defaultTile = tileIndex;
-                            this.updateSelectedTileCanvas();
+                            this.setSecondaryTile(tileIndex);
                             e.preventDefault();
                         }
                         if (this.tilesetSelectionStartX >= 0) {
@@ -3291,6 +3448,7 @@ class LevelEditor {
     selectTile(tileIndex) {
         if (tileIndex < 0) return;
         this.selectedTile = tileIndex;
+        this.setPrimaryTile(tileIndex);
         if (!this.level.tilesetImage) return;
         const tw = this.level.tileWidth || 16;
         const tilesPerRow = Math.floor(this.level.tilesetImage.width / tw);
@@ -3304,6 +3462,47 @@ class LevelEditor {
         this.updateTilesetDisplay();
         this.updateSelectedTileDisplay();
         this.updateSelectedTileCanvas();
+    }
+
+    setPrimaryTile(tileIndex) {
+        if (tileIndex < 0) return;
+        this.defaultTile = tileIndex;
+        this.updateSelectedTileCanvas();
+    }
+
+    setSecondaryTile(tileIndex) {
+        if (tileIndex < 0) return;
+        this.secondaryTile = tileIndex;
+        this.updateSelectedTileCanvas();
+    }
+
+    swapSelectedTiles() {
+        const primary = this.defaultTile >= 0 ? this.defaultTile : 0;
+        const secondary = this.secondaryTile >= 0 ? this.secondaryTile : 0;
+        this.defaultTile = secondary;
+        this.secondaryTile = primary;
+        this.updateSelectedTileCanvas();
+    }
+
+    scrollTilesetToTile(tileIndex) {
+        if (tileIndex < 0 || !this.level?.tilesetImage) return;
+        const tilesetCanvas = this.$('tilesetCanvas');
+        const tilesetDisplay = tilesetCanvas?.parentElement;
+        if (!tilesetCanvas || !tilesetDisplay) return;
+        const tileWidth = this.level.tileWidth || 16;
+        const tileHeight = this.level.tileHeight || 16;
+        const tilesPerRow = Math.floor(this.level.tilesetImage.width / tileWidth);
+        if (tilesPerRow <= 0) return;
+        const tx = tileIndex % tilesPerRow;
+        const ty = Math.floor(tileIndex / tilesPerRow);
+        const scaledTileWidth = tileWidth * this.tilesetZoom;
+        const scaledTileHeight = tileHeight * this.tilesetZoom;
+        const targetLeft = tx * scaledTileWidth - (tilesetDisplay.clientWidth / 2) + (scaledTileWidth / 2);
+        const targetTop = ty * scaledTileHeight - (tilesetDisplay.clientHeight / 2) + (scaledTileHeight / 2);
+        const maxLeft = Math.max(0, tilesetCanvas.width * this.tilesetZoom - tilesetDisplay.clientWidth);
+        const maxTop = Math.max(0, tilesetCanvas.height * this.tilesetZoom - tilesetDisplay.clientHeight);
+        tilesetDisplay.scrollLeft = Math.max(0, Math.min(maxLeft, targetLeft));
+        tilesetDisplay.scrollTop = Math.max(0, Math.min(maxTop, targetTop));
     }
 
     newLevel() {
@@ -3469,19 +3668,14 @@ class LevelEditor {
         this.applyTiledefFromNPCs();
         this.render(); if (prevWasGmap && !entry.gmapGrid) this.centerView();
     }
-    _confirm(msg, fn) {
-        const box = document.createElement('div');
-        box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;';
-        const bs = 'background:#2b2b2b;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;color:#e0e0e0;padding:6px 18px;cursor:pointer;font-family:chevyray,monospace;font-size:12px;';
-        box.innerHTML = `<div class="ed-dialog-box" style="background:var(--dialog-bg,#2b2b2b);border:2px solid #404040;padding:20px 24px;max-width:340px;font-family:chevyray,monospace;font-size:12px;line-height:1.6;text-align:center;color:#e0e0e0;">
-            <div style="margin-bottom:16px;white-space:pre-wrap;">${msg}</div>
-            <div style="display:flex;gap:10px;justify-content:center;">
-                <button id="_cfmYes" style="${bs}">Yes</button>
-                <button id="_cfmNo" style="${bs}">No</button>
-            </div></div>`;
-        document.body.appendChild(box);
-        box.querySelector('#_cfmNo').onclick = () => box.remove();
-        box.querySelector('#_cfmYes').onclick = () => { box.remove(); fn(); };
+    _confirm(msg, fn, showClearStorage = false) {
+        if (typeof window.openSharedConfirmDialog === 'function') {
+            window.openSharedConfirmDialog({ title: 'Confirm', message: msg, showClearStorage }).then(result => {
+                if (result?.confirmed) fn(!!result.clearStorage);
+            });
+            return;
+        }
+        fn(false);
     }
 
     _setEditorVisible(visible) {
@@ -3983,6 +4177,19 @@ class LevelEditor {
         return this._keybinds;
     }
     _saveKeybinds(kb) { this._keybinds = kb; localStorage.setItem('graal_editorKeybinds', JSON.stringify(kb)); }
+    _updateToolButtonTooltips() {
+        const kb = this._getKeybinds();
+        const tips = [
+            ['btnSelect', `Select (${_fmtKB(kb.selectTool)})`],
+            ['btnDraw', `Draw (${_fmtKB(kb.drawTool)})`],
+            ['btnEraserTool', `Eraser (${_fmtKB(kb.eraseTool)})`],
+            ['btnFillTool', `Flood Fill (${_fmtKB(kb.fillTool)})`],
+        ];
+        tips.forEach(([id, title]) => {
+            const btn = this.$(id);
+            if (btn) btn.title = title;
+        });
+    }
 
     openSettingsDialog() {
         if (this.$('_settingsDlg')) return;
@@ -4002,6 +4209,8 @@ class LevelEditor {
             { key:'copy', label:'Copy' }, { key:'cut', label:'Cut' }, { key:'paste', label:'Paste' },
             { key:'delete', label:'Delete' }, { key:'playMode', label:'Play Mode' },
             { key:'about', label:'About' }, { key:'settings', label:'Settings' },
+            { key:'selectTool', label:'Select Tool' }, { key:'drawTool', label:'Draw Tool' },
+            { key:'eraseTool', label:'Erase Tool' }, { key:'fillTool', label:'Flood Fill Tool' },
             { section: 'Play Mode' },
             { key:'openChat', label:'Open Chat' }, { key:'debugInfo', label:'Debug Info' },
             { key:'debugOverlay', label:'Debug Overlay' }, { key:'editBypass', label:'Edit Bypass' },
@@ -4078,13 +4287,14 @@ class LevelEditor {
                     const cur = this._getKeybinds();
                     cur[btn.dataset.action] = binding;
                     this._saveKeybinds({ ...cur });
+                    this._updateToolButtonTooltips();
                     btn.textContent = _fmtKB(binding); btn.style.color = '#e0e0e0';
                     delete btn.dataset.listening;
                     document.removeEventListener('keydown', capture, true);
                 };
                 document.addEventListener('keydown', capture, true);
             };
-            btn.oncontextmenu = (ev) => { ev.preventDefault(); const cur = this._getKeybinds(); cur[btn.dataset.action] = _DEFAULT_KB[btn.dataset.action]; this._saveKeybinds({ ...cur }); btn.textContent = _fmtKB(_DEFAULT_KB[btn.dataset.action]); };
+            btn.oncontextmenu = (ev) => { ev.preventDefault(); const cur = this._getKeybinds(); cur[btn.dataset.action] = _DEFAULT_KB[btn.dataset.action]; this._saveKeybinds({ ...cur }); this._updateToolButtonTooltips(); btn.textContent = _fmtKB(_DEFAULT_KB[btn.dataset.action]); };
         });
         const close = () => { if (box.parentNode) box.parentNode.removeChild(box); };
         box.querySelector('#_stClose').onclick = () => { this._saveSettings(_snapSettings); this._saveKeybinds({ ..._snapKB }); this.requestRender(); close(); };
@@ -5504,12 +5714,9 @@ class LevelEditor {
 
 
     updateSelectedTileCanvas() {
-        const canvas = this.$('selectedTileCanvas');
-        if (!canvas) return;
-
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.imageSmoothingEnabled = false;
+        const primaryCanvas = this.$('selectedTileCanvas');
+        const secondaryCanvas = this.$('secondaryTileCanvas');
+        if (!primaryCanvas) return;
 
         if (!this.level || !this.level.tilesetImage) {
             this.updateTilesetDisplay();
@@ -5517,26 +5724,36 @@ class LevelEditor {
         }
 
         if (this.defaultTile < 0) this.defaultTile = 0;
+        if (this.secondaryTile < 0) this.secondaryTile = 0;
 
         const isImageLoaded = this.level.tilesetImage.complete !== undefined ? this.level.tilesetImage.complete : true;
         if (isImageLoaded) {
             try {
-                const tileWidth = this.level.tileWidth || 16;
-                const tileHeight = this.level.tileHeight || 16;
-                const coords = this.level.getTilesetCoords(this.defaultTile);
-                if (coords && this.level.tilesetImage.width > 0 && this.level.tilesetImage.height > 0) {
-                    ctx.drawImage(
-                        this.level.tilesetImage,
-                        coords.x, coords.y, tileWidth, tileHeight,
-                        0, 0, canvas.width, canvas.height
-                    );
-                }
+                this._drawTilePreview(primaryCanvas, this.defaultTile);
+                if (secondaryCanvas) this._drawTilePreview(secondaryCanvas, this.secondaryTile);
             } catch (e) {
-                console.error('Error drawing default tile:', e);
+                console.error('Error drawing selected tile preview:', e);
             }
         }
 
         this.updateTilesetDisplay();
+    }
+
+    _drawTilePreview(canvas, tileIndex) {
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.imageSmoothingEnabled = false;
+        const tileWidth = this.level.tileWidth || 16;
+        const tileHeight = this.level.tileHeight || 16;
+        const coords = this.level.getTilesetCoords(tileIndex);
+        if (coords && this.level.tilesetImage.width > 0 && this.level.tilesetImage.height > 0) {
+            ctx.drawImage(
+                this.level.tilesetImage,
+                coords.x, coords.y, tileWidth, tileHeight,
+                0, 0, canvas.width, canvas.height
+            );
+        }
     }
 
     captureTilesetSelection() {
@@ -5691,7 +5908,23 @@ class LevelEditor {
     }
 
     refreshTileset() {
-        this.loadTilesetImage(this.level.tilesetName);
+        const tilesetName = this.level?.tilesetName;
+        if (!tilesetName) return;
+        const hasOnlyDataCache = !!this._tilesetDataCache?.[tilesetName] && !this.fileCache?.images?.has(tilesetName) && !_isTauri;
+        if (!hasOnlyDataCache) {
+            const cachedImageUrl = this.fileCache?.images?.get(tilesetName);
+            if (cachedImageUrl?.startsWith('blob:')) {
+                try { URL.revokeObjectURL(cachedImageUrl); } catch (e) {}
+            }
+            const cachedMngUrl = this.fileCache?.mngs?.get(tilesetName);
+            if (cachedMngUrl?.startsWith('blob:')) {
+                try { URL.revokeObjectURL(cachedMngUrl); } catch (e) {}
+            }
+            this.fileCache?.images?.delete(tilesetName);
+            this.fileCache?.mngs?.delete?.(tilesetName);
+            this._fcLower = null;
+        }
+        this.loadTilesetImage(tilesetName, !hasOnlyDataCache);
     }
 
     newTileset() {
@@ -5846,17 +6079,22 @@ class LevelEditor {
     }
 
     clearSelectedTile() {
+        this.setPrimaryTile(0);
         this.selectTile(0);
     }
 
-    loadTilesetImage(tilesetName) {
+    loadTilesetImage(tilesetName, forceRefresh = false) {
         if (!tilesetName) return;
-        if (_isTauri && !this._tilesetDataCache?.[tilesetName] && !this.fileCache?.images?.has(tilesetName)) {
+        if (_isTauri && (forceRefresh || (!this._tilesetDataCache?.[tilesetName] && !this.fileCache?.images?.has(tilesetName)))) {
             _tauri.core.invoke('resolve_path', { name: tilesetName }).then(fp => {
                 if (fp) this.loadImageFromPath(fp, tilesetName).then(() => this.loadTilesetImage(tilesetName)).catch(() => {});
             }).catch(() => {});
+            if (forceRefresh) return;
         }
-        const src = this._tilesetDataCache?.[tilesetName] || this.fileCache?.images?.get(tilesetName) || `images/${tilesetName}`;
+        let src = this._tilesetDataCache?.[tilesetName] || this.fileCache?.images?.get(tilesetName) || `images/${tilesetName}`;
+        if (forceRefresh && !this._tilesetDataCache?.[tilesetName] && !this.fileCache?.images?.has(tilesetName)) {
+            src += `${src.includes('?') ? '&' : '?'}_ts=${Date.now()}`;
+        }
         if (!this.fileCache?.images?.has(tilesetName) && tilesetName.toLowerCase().endsWith('.mng')) {
             const img = new Image();
             img.onload = () => {
@@ -6068,6 +6306,7 @@ class LevelEditor {
             _drawItems.push({ isPlayer: true, sortY: this._getPlayerSortFeetY() });
             _drawItems.sort((a, b) => a.sortY - b.sortY);
         }
+        const _deferredSelected = [];
         for (const _item of _drawItems) {
             if (_item.isPlayer) {
                 const _p = this._player, _pb = {};
@@ -6079,6 +6318,10 @@ class LevelEditor {
                 continue;
             }
             const obj = _item.obj;
+            if (!this._playMode && this.isObjectSelected(obj)) {
+                _deferredSelected.push(obj);
+                continue;
+            }
             const x = obj.x * tw;
             const y = obj.y * th;
             switch (obj.type) {
@@ -6127,7 +6370,57 @@ class LevelEditor {
                     pts.forEach(([px,py]) => { this.ctx.fillRect(px-hs/2,py-hs/2,hs,hs); this.ctx.strokeRect(px-hs/2,py-hs/2,hs,hs); });
                 }
             }
-        };
+        }
+        for (const obj of _deferredSelected) {
+            const x = obj.x * tw;
+            const y = obj.y * th;
+            switch (obj.type) {
+                case 'baddy': this.drawBaddy(x, y, tw, th, obj); break;
+                case 'npc': this.drawNPC(x, y, tw, th, obj, visChars); break;
+                case 'chest': this.drawChest(x, y, tw, th); break;
+                case 'sign': this.drawSign(x, y, tw, th, obj); break;
+                case 'link': this.drawLink(x, y, tw, th, obj); break;
+                default: this.drawGenericObject(x, y, tw, th, obj.type);
+            }
+            if (!this._screenshotMode) {
+                const _bc = obj.type === 'baddy' ? BADDY_CROPS[Math.max(0, Math.min(9, obj.properties?.baddyType ?? 0))] : null;
+                const sc2 = obj.type === 'sign' ? 'rgb(255,0,0)' : obj.type === 'link' ? 'rgb(255,215,0)' : 'rgb(255,105,180)';
+                const fc2 = obj.type === 'sign' ? 'rgba(255,0,0,0.25)' : obj.type === 'link' ? 'rgba(255,215,0,0.25)' : 'rgba(255,105,180,0.35)';
+                this.ctx.fillStyle = fc2; this.ctx.strokeStyle = sc2; this.ctx.lineWidth = 2 / this.zoom;
+                const shp = obj._shapeCache;
+                let ow, oh, ox = 0, oy = 0;
+                if (obj.type === 'npc' && shp?.type === 2) {
+                    for (let ty2 = 0; ty2 < shp.h; ty2++) for (let tx2 = 0; tx2 < shp.w; tx2++) {
+                        if (!shp.tiles[ty2 * shp.w + tx2]) continue;
+                        this.ctx.fillRect(x + tx2*tw, y + ty2*th, tw, th); this.ctx.strokeRect(x + tx2*tw, y + ty2*th, tw, th);
+                    }
+                } else {
+                    if (obj.type === 'npc' && shp?.type === 1) { ow = shp.w; oh = shp.h; }
+                    else if (_bc) { ow = _bc[2]; oh = _bc[3]; }
+                    else if (obj.type === 'npc') {
+                        const _tb = this._getTightBounds(obj);
+                        const _gox = obj._ganiOX ?? 0, _goy = obj._ganiOY ?? 0;
+                        const _sx2 = obj._stretchx ?? 1, _sy2 = obj._stretchy ?? 1;
+                        if (_tb) {
+                            ow = _tb.bw; oh = _tb.bh;
+                            ox = _gox + (_sx2 < 0 ? _tb.srcW - _tb.bx - _tb.bw : _tb.bx);
+                            oy = _goy + (_sy2 < 0 ? _tb.srcH - _tb.by - _tb.bh : _tb.by);
+                        } else {
+                            ow = obj._imgW || (obj.properties?.width||3)*tw; oh = obj._imgH || (obj.properties?.height||3)*th;
+                            ox = _gox; oy = _goy;
+                        }
+                    }
+                    else { ow = (obj.properties?.width || (obj.type==='chest'?2:obj.type==='sign'?2:obj.type==='link'?2:1))*tw; oh = (obj.properties?.height || (obj.type==='chest'?2:obj.type==='link'?2:1))*th; }
+                    this.ctx.fillRect(x + ox, y + oy, ow, oh); this.ctx.strokeRect(x + ox, y + oy, ow, oh);
+                }
+                if (obj.type === 'link' && ow != null) {
+                    const hs = Math.max(6, 6 / this.zoom);
+                    const pts = [[x,y],[x+ow/2,y],[x+ow,y],[x+ow,y+oh/2],[x+ow,y+oh],[x+ow/2,y+oh],[x,y+oh],[x,y+oh/2]];
+                    this.ctx.fillStyle = '#fff'; this.ctx.strokeStyle = 'rgb(255,215,0)'; this.ctx.lineWidth = 1/this.zoom;
+                    pts.forEach(([px,py]) => { this.ctx.fillRect(px-hs/2,py-hs/2,hs,hs); this.ctx.strokeRect(px-hs/2,py-hs/2,hs,hs); });
+                }
+            }
+        }
     }
 
     drawBaddy(x, y, tw, th, obj) {
@@ -6461,28 +6754,17 @@ class LevelEditor {
     }
 
     resetEditor() {
-        const box = document.createElement('div');
-        box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#2b2b2b;border:1px solid #404040;padding:16px 20px;z-index:99999;min-width:280px;font-size:13px;color:#e0e0e0;'; box.classList.add('ed-dialog-box');
-        box.innerHTML = `<div class="ed-dlg-title">Reset Editor</div>
-            <div style="margin-bottom:12px;">Reset editor to defaults? This clears all saved state.</div>
-            <div style="display:flex;gap:8px;justify-content:flex-end;">
-              <button id="_resetOk" style="padding:4px 10px;">Reset</button>
-              <button id="_resetCancel" style="padding:4px 10px;">Cancel</button>
-            </div>`;
-        document.body.appendChild(box);
-        const close = () => box.remove();
-        box._closeModal = close;
-        this.$('_resetCancel').onclick = close;
-        this.$('_resetOk').onclick = () => {
-            close();
-            this._doReset();
-        };
-        return;
+        this._confirm('Reset the editor to default state? This will reset zoom, pan, selections, UI layout, and all settings.', (clearStorage) => {
+            this._doReset(clearStorage);
+        }, true);
     }
 
-    _doReset() {
-        localStorage.removeItem('levelEditorSession');
-        localStorage.removeItem('editorColorScheme');
+    _doReset(clearStorage = false) {
+        if (clearStorage) localStorage.clear();
+        else {
+            localStorage.removeItem('levelEditorSession');
+            localStorage.removeItem('editorColorScheme');
+        }
         const left = document.querySelector('.object-library-panel');
         const right = document.querySelector('.right-tabs');
         if (left) { left.style.width = '250px'; left.style.flex = ''; }
@@ -7453,9 +7735,11 @@ class LevelEditor {
     applyColorScheme(scheme) {
         const oldStyle = this.$('colorSchemeStyle');
         if (oldStyle) oldStyle.remove();
-        const tag = this.$('levelEditorCustomUserCSS');
-        if (tag) tag.textContent = '';
-        localStorage.removeItem('gsuite_customCSS');
+        if (scheme === 'default') {
+            const tag = this.$('levelEditorCustomUserCSS');
+            if (tag) tag.remove();
+            localStorage.removeItem('gsuite_customCSS');
+        }
         const schemes = {
             'fusion-light': { bg:'#f5f5f5', panel:'#ffffff', border:'#d0d0d0', text:'#1a1a1a', hover:'#e8e8e8', button:'#ffffff', buttonText:'#1a1a1a', buttonHover:'#f0f0f0', tabActive:'#ffffff', inputBg:'#ffffff' },
             'fusion-dark':  { bg:'#1e1e1e', panel:'#2d2d2d', border:'#0f0f0f', text:'#e8e8e8', hover:'#3d3d3d' },
@@ -7801,6 +8085,13 @@ class LevelEditor {
         } else { mkFallback(); }
         const applyCSS = () => {
             const css = getValue();
+            if (!css.trim()) {
+                const tag = this.$('levelEditorCustomUserCSS');
+                if (tag) tag.remove();
+                localStorage.removeItem('gsuite_customCSS');
+                this.applyColorScheme(localStorage.getItem('editorColorScheme') || 'default');
+                return;
+            }
             let tag = this.$('levelEditorCustomUserCSS');
             if (!tag) { tag = document.createElement('style'); tag.id = 'levelEditorCustomUserCSS'; document.head.appendChild(tag); }
             tag.textContent = css;
@@ -7812,8 +8103,9 @@ class LevelEditor {
         overlay.querySelector('#levelCssClear').onclick = () => {
             setValue('');
             const tag = this.$('levelEditorCustomUserCSS');
-            if (tag) tag.textContent = '';
+            if (tag) tag.remove();
             localStorage.removeItem('gsuite_customCSS');
+            this.applyColorScheme(localStorage.getItem('editorColorScheme') || 'default');
         };
         overlay.querySelector('#levelCssImport').onclick = () => {
             const inp = document.createElement('input');

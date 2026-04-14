@@ -51,11 +51,17 @@ const TabManager = {
 
     saveState() {
         try {
-            if (!this._tabs.length) {
+            if (!this._tabs.length && (!Array.isArray(this._pendingRestoreState) || !this._pendingRestoreState.length)) {
                 this.clearState();
                 return;
             }
             const state = this._tabs.map(t => ({ type: t.type, name: t.name, data: this._serializeTabData(t) }));
+            if (Array.isArray(this._pendingRestoreState) && this._pendingRestoreState.length) {
+                const unmatchedSaved = this._pendingRestoreState.filter(saved =>
+                    !this._tabs.some(tab => this._tabMatchesState(tab, saved))
+                );
+                state.push(...unmatchedSaved);
+            }
             localStorage.setItem('graalSuiteTabs', JSON.stringify(state));
         } catch (e) { console.warn('[TabManager saveState] failed:', e); }
     },
@@ -168,6 +174,7 @@ const TabManager = {
             const ani = tab.data?.ani;
             return {
                 index: typeof tab.data?.index === 'number' ? tab.data.index : null,
+                id: ani?.id || tab.data?.id || null,
                 fileName: ani?.fileName || tab.data?.fileName || tab.name || '',
                 fullPath: ani?.fullPath || tab.data?.fullPath || ''
             };
@@ -187,6 +194,7 @@ const TabManager = {
         if (!tab || !saved || tab.type !== saved.type) return false;
         const savedData = saved.data || {};
         const currentData = this._serializeTabData(tab);
+        if (savedData.id && currentData.id && savedData.id === currentData.id) return true;
         if (savedData.fullPath && currentData.fullPath && savedData.fullPath === currentData.fullPath) return true;
         if (tab.type === 'gani') {
             const savedName = savedData.fileName || saved.name || '';
@@ -203,9 +211,11 @@ const TabManager = {
         if (!this._tabs.length || !this._listEl) return false;
         const ordered = [];
         const remaining = [...this._tabs];
+        const unmatchedSaved = [];
         for (const saved of this._pendingRestoreState) {
             const matchIndex = remaining.findIndex(tab => this._tabMatchesState(tab, saved));
             if (matchIndex >= 0) ordered.push(remaining.splice(matchIndex, 1)[0]);
+            else unmatchedSaved.push(saved);
         }
         if (!ordered.length) return false;
         ordered.push(...remaining);
@@ -214,7 +224,7 @@ const TabManager = {
         for (const tab of this._tabs) this._renderTab(tab);
         this._updateHighlight();
         this._updateScrollButtons();
-        this._pendingRestoreState = null;
+        this._pendingRestoreState = unmatchedSaved.length ? unmatchedSaved : null;
         return true;
     },
 
