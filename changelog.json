@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.1.47",
+    "date": "2026-04-15",
+    "tag": "GSuite",
+    "changes": [
+      "Level editor now has rebindable shortcuts for Toggle Grid, Center View, Snap to Grid, and swapping the primary/secondary tile selection",
+      ".gmap suite tabs now use the same icon as Gmap Generator instead of the generic level tab icon",
+      "Fixed issue where MNG was not loading in play mode",
+      "Fixed a level editor bug where drawing with a tile stamp could also place the current primary dropper tile at the same time"
+    ]
+  },
+  {
     "version": "0.1.46",
     "date": "2026-04-15",
     "tag": "GSuite",

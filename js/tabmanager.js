@@ -306,6 +306,10 @@ const TabManager = {
     _updateScrollButtons() {},
 
     _getTabIconHTML(entry) {
+        const name = (entry?.name || '').toLowerCase();
+        if (name.endsWith('.gmap')) {
+            return `<img class="tab-icon" src="icons/gmapgen.ico" alt="">`;
+        }
         const iconMap = {
             level: { src: 'icons/rcfiles_nw.png', cls: '' },
             gani: { src: 'icons/user.svg', cls: 'svg-icon' },

@@ -1392,14 +1392,18 @@
                         <div class="tab-panel active" id="tileset-tab">
                             <div class="tileset-toolbar">
                                 <button title="Edit Tileset Order" id="btnTilesetOrder"><i class="fas fa-list"></i></button>
-                                <select id="tilesetsCombo">
-                                    <option value="pics1.png">pics1.png</option>
-                                    <option value="zlttp_tiles_lightworld_day.png">zlttp_tiles_lightworld_day.png</option>
-                                </select>
-                                <button title="Refresh Tileset" id="btnRefreshTileset"><i class="fas fa-sync"></i></button>
-                                <button title="New Tileset" id="btnNewTileset"><i class="fas fa-file"></i></button>
-                                <button title="Load Tileset" id="btnLoadTileset"><i class="fas fa-folder-open"></i></button>
-                                <button title="Delete Tileset" id="btnDeleteTileset"><i class="fas fa-trash"></i></button>
+                                <div class="tileset-toolbar-select">
+                                    <select id="tilesetsCombo">
+                                        <option value="pics1.png">pics1.png</option>
+                                        <option value="zlttp_tiles_lightworld_day.png">zlttp_tiles_lightworld_day.png</option>
+                                    </select>
+                                </div>
+                                <div class="tileset-toolbar-actions">
+                                    <button title="Refresh Tileset" id="btnRefreshTileset"><i class="fas fa-sync"></i></button>
+                                    <button title="New Tileset" id="btnNewTileset"><i class="fas fa-file"></i></button>
+                                    <button title="Load Tileset" id="btnLoadTileset"><i class="fas fa-folder-open"></i></button>
+                                    <button title="Delete Tileset" id="btnDeleteTileset"><i class="fas fa-trash"></i></button>
+                                </div>
                             </div>
                             <div class="tileset-display">
                                 <canvas id="tilesetCanvas"></canvas>

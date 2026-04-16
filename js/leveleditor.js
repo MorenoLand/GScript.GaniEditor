@@ -7,6 +7,7 @@ const _DEFAULT_KB = {
     undo:'ctrl+z', redo:'ctrl+y', save:'ctrl+s', copy:'ctrl+c', cut:'ctrl+x', paste:'ctrl+v',
     delete:'Delete', playMode:'F4', about:'F1', settings:'F2',
     selectTool:'s', drawTool:'d', eraseTool:'e', fillTool:'f',
+    toggleGrid:'g', centerView:'c', snapGrid:'m', swapTiles:'x',
     openChat:'Enter', debugInfo:'1', debugOverlay:'2', editBypass:'3', grab:'e',
 };
 function _matchKB(e, b) {
@@ -950,8 +951,21 @@ class LevelEditor {
         this.$('btnSaveAs').addEventListener('click', () => this.saveLevelAs());
         this.$('btnSaveAll')?.addEventListener('click', () => this.saveAllLevels());
         this.$('btnTilesetOrder').addEventListener('click', () => { this.tilesetOrder(); });
-        this.$('tilesetsCombo').addEventListener('change', (e) => this.selectTileset(e.target.value));
-        try { const tc = JSON.parse(localStorage.getItem('levelEditor_tilesetCache')||'{}'); if (tc && typeof tc === 'object') { this._tilesetDataCache = tc; const combo = this.$('tilesetsCombo'); for (const name of Object.keys(tc)) { if (combo && ![...combo.options].some(o => o.value === name)) { const o = document.createElement('option'); o.value = o.textContent = name; combo.appendChild(o); } } } } catch(e) {}
+        const tilesetsCombo = this.$('tilesetsCombo');
+        const openTilesetPicker = (e) => {
+            if (!tilesetsCombo || tilesetsCombo.disabled) return;
+            if (e?.target?.closest?.('button')) return;
+            try {
+                tilesetsCombo.focus({ preventScroll: true });
+                tilesetsCombo.showPicker?.();
+            } catch (_) {}
+        };
+        tilesetsCombo.addEventListener('change', (e) => this.selectTileset(e.target.value));
+        tilesetsCombo.addEventListener('mousedown', openTilesetPicker);
+        tilesetsCombo.parentElement?.addEventListener('mousedown', (e) => {
+            if (e.target === tilesetsCombo.parentElement) openTilesetPicker(e);
+        });
+        try { const tc = JSON.parse(localStorage.getItem('levelEditor_tilesetCache')||'{}'); if (tc && typeof tc === 'object') { this._tilesetDataCache = tc; const combo = tilesetsCombo; for (const name of Object.keys(tc)) { if (combo && ![...combo.options].some(o => o.value === name)) { const o = document.createElement('option'); o.value = o.textContent = name; combo.appendChild(o); } } } } catch(e) {}
         this.$('btnRefreshTileset').addEventListener('click', () => this.refreshTileset());
         this.$('btnNewTileset').addEventListener('click', () => this.newTileset());
         this.$('btnLoadTileset').addEventListener('click', () => this.loadTileset());
@@ -1740,7 +1754,7 @@ class LevelEditor {
             this.updateSelectionInfo();
             this.render();
         } else if (this.isDraggingFromTileset) {
-        } else if (this.isDrawing && !this.isSelecting) {
+        } else if (this.isDrawing && !this.isSelecting && !this.isDraggingTileSelection) {
             this.drawAt(coords.x, coords.y);
             this.dragMouseX = e.clientX;
             this.dragMouseY = e.clientY;
@@ -1987,11 +2001,19 @@ class LevelEditor {
             if (about?.style.display === 'flex') { about.style.display = 'none'; return; }
         }
         const _ae = document.activeElement;
-        const _typing = _ae && (_ae.tagName === 'INPUT' || _ae.tagName === 'TEXTAREA' || _ae.tagName === 'SELECT' || _ae.isContentEditable);
+        const _monacoFocused = !!(
+            _ae?.closest?.('.monaco-editor, .monaco-inputbox, #npcMonacoContainer') ||
+            document.querySelector('.monaco-editor.focused')
+        );
+        const _typing = !!(_ae && (_ae.tagName === 'INPUT' || _ae.tagName === 'TEXTAREA' || _ae.tagName === 'SELECT' || _ae.isContentEditable)) || _monacoFocused;
         const _kb = this._getKeybinds();
         if (_matchKB(e, _kb.about)) { e.preventDefault(); window.openInfoDialog?.('about'); return; }
         if (_matchKB(e, _kb.settings)) { e.preventDefault(); this.openSettingsDialog(); return; }
         if (_matchKB(e, _kb.playMode)) { e.preventDefault(); this.togglePlayMode(); return; }
+        if (_typing) {
+            if (_matchKB(e, _kb.save)) { e.preventDefault(); this.saveLevel(); return; }
+            return;
+        }
         if (_matchKB(e, _kb.delete)) {
             this._doDelete();
             return;
@@ -2002,7 +2024,6 @@ class LevelEditor {
         if (_matchKB(e, _kb.copy) && (this.hasObjectSelection() || this.hasSelection())) { e.preventDefault(); this._doCopy(); return; }
         if (_matchKB(e, _kb.cut) && (this.hasObjectSelection() || this.hasSelection())) { e.preventDefault(); this._doCut(); return; }
         if (_matchKB(e, _kb.paste) && (this._clipboardObjects?.length || this._clipboardTiles)) { e.preventDefault(); this._doPaste(); return; }
-        if (_typing) return;
         if (_matchKB(e, _kb.selectTool)) { e.preventDefault(); this.objectMode = false; this.setTool('select'); return; }
         if (_matchKB(e, _kb.drawTool)) { e.preventDefault(); this.setTool('draw'); return; }
         if (_matchKB(e, _kb.fillTool)) {
@@ -2014,6 +2035,10 @@ class LevelEditor {
             return;
         }
         if (_matchKB(e, _kb.eraseTool)) { e.preventDefault(); this.setTool('eraser'); return; }
+        if (_matchKB(e, _kb.toggleGrid)) { e.preventDefault(); this.toggleGrid(); return; }
+        if (_matchKB(e, _kb.centerView)) { e.preventDefault(); this.centerView(); return; }
+        if (_matchKB(e, _kb.snapGrid)) { e.preventDefault(); this.toggleSnapGrid(); return; }
+        if (_matchKB(e, _kb.swapTiles)) { e.preventDefault(); this.swapSelectedTiles(); return; }
     }
 
     _canvasRect() {
@@ -3912,7 +3937,6 @@ class LevelEditor {
         this._ganiImgCache = new Map();
         this.fileCache = { images: new Map(), ganis: new Map(), ganiTexts: new Map(), sounds: new Map(), levels: new Map() };
         if (window._workspaceScanUnlisten) { window._workspaceScanUnlisten(); window._workspaceScanUnlisten = null; }
-        const loader = this.showLoadingMessage('Scanning...');
         const _yield = () => new Promise(r => setTimeout(r, 0));
         window._workspaceScanUnlisten = await _tauri.event.listen('workspace_chunk', async (event) => {
             const chunk = event.payload;
@@ -3938,7 +3962,6 @@ class LevelEditor {
             for (const [name, path] of (chunk.level_files || [])) this._tauriPathIndex.set(name, path);
             if (chunk.done) {
                 if (window._workspaceScanUnlisten) { window._workspaceScanUnlisten(); window._workspaceScanUnlisten = null; }
-                loader.close();
                 this._workspaceCount = (this._workspaceCount || 0) + 1;
                 const el = this.$('objectsDir');
                 if (el) el.value = this._workspaceCount === 1 ? dirName : `${this._workspaceCount} workspaces`;
@@ -4311,11 +4334,18 @@ class LevelEditor {
             ['btnDraw', `Draw (${_fmtKB(kb.drawTool)})`],
             ['btnEraserTool', `Eraser (${_fmtKB(kb.eraseTool)})`],
             ['btnFillTool', `Flood Fill (${_fmtKB(kb.fillTool)})`],
+            ['btnGrid', `Toggle Grid (${_fmtKB(kb.toggleGrid)})`],
+            ['btnCenterView', `Center View (${_fmtKB(kb.centerView)})`],
+            ['btnSnapGrid', `Snap to Grid (${_fmtKB(kb.snapGrid)})`],
         ];
         tips.forEach(([id, title]) => {
             const btn = this.$(id);
             if (btn) btn.title = title;
         });
+        const primary = this.$('selectedTileCanvas');
+        if (primary) primary.title = `Primary Tile (${_fmtKB(kb.swapTiles)} to swap)`;
+        const secondary = this.$('secondaryTileCanvas');
+        if (secondary) secondary.title = `Secondary Tile (${_fmtKB(kb.swapTiles)} to swap)`;
     }
 
     openSettingsDialog() {
@@ -4338,6 +4368,8 @@ class LevelEditor {
             { key:'about', label:'About' }, { key:'settings', label:'Settings' },
             { key:'selectTool', label:'Select Tool' }, { key:'drawTool', label:'Draw Tool' },
             { key:'eraseTool', label:'Erase Tool' }, { key:'fillTool', label:'Flood Fill Tool' },
+            { key:'toggleGrid', label:'Toggle Grid' }, { key:'centerView', label:'Center View' },
+            { key:'snapGrid', label:'Snap to Grid' }, { key:'swapTiles', label:'Swap Primary/Secondary Tile' },
             { section: 'Play Mode' },
             { key:'openChat', label:'Open Chat' }, { key:'debugInfo', label:'Debug Info' },
             { key:'debugOverlay', label:'Debug Overlay' }, { key:'editBypass', label:'Edit Bypass' },
@@ -6572,10 +6604,16 @@ class LevelEditor {
             if (this._mngAnimCache.has(name)) return this._mngAnimCache.get(name);
             const placeholder = document.createElement('canvas'); placeholder.width = 1; placeholder.height = 1;
             this._mngAnimCache.set(name, placeholder);
-            const mngBlob = this.fileCache?.mngs?.get(name);
+            const lowerName = name.toLowerCase();
+            const mngBlob = this.fileCache?.mngs?.get(name)
+                || this.fileCache?.mngs?.get(lowerName)
+                || [...(this.fileCache?.mngs?.entries?.() || [])].find(([k]) => k.toLowerCase() === lowerName)?.[1];
+            const tauriPath = this._tauriPathIndex?.get(lowerName)
+                || this._tauriPathIndex?.get(name)
+                || [...(this._tauriPathIndex?.entries?.() || [])].find(([k]) => k.toLowerCase() === lowerName)?.[1];
             const _mngLoad2 = buf => MNG.play(buf).then(c => { this._mngAnimCache.set(name, c); this.requestRender(); }).catch(() => {});
             if (mngBlob) { fetch(mngBlob).then(r => r.arrayBuffer()).then(_mngLoad2).catch(() => {}); }
-            else if (_isTauri && this._tauriPathIndex?.has(name.toLowerCase())) { _tauri.fs.readFile(this._tauriPathIndex.get(name.toLowerCase())).then(d => _mngLoad2(d.buffer)).catch(() => {}); }
+            else if (_isTauri && tauriPath) { _tauri.fs.readFile(tauriPath).then(d => _mngLoad2(d.buffer)).catch(() => {}); }
             else { fetch(`images/${name}`).then(r => r.arrayBuffer()).then(_mngLoad2).catch(() => {}); }
             return placeholder;
         }
@@ -6738,10 +6776,16 @@ class LevelEditor {
                 if (!this._mngAnimCache.has(imgName)) {
                     const placeholder = document.createElement('canvas'); placeholder.width = 1; placeholder.height = 1;
                     this._mngAnimCache.set(imgName, placeholder);
-                    const mngBlob = this.fileCache?.mngs?.get(imgName);
+                    const lowerImgName = imgName.toLowerCase();
+                    const mngBlob = this.fileCache?.mngs?.get(imgName)
+                        || this.fileCache?.mngs?.get(lowerImgName)
+                        || [...(this.fileCache?.mngs?.entries?.() || [])].find(([k]) => k.toLowerCase() === lowerImgName)?.[1];
+                    const tauriPath = this._tauriPathIndex?.get(lowerImgName)
+                        || this._tauriPathIndex?.get(imgName)
+                        || [...(this._tauriPathIndex?.entries?.() || [])].find(([k]) => k.toLowerCase() === lowerImgName)?.[1];
                     const _mngLoad = buf => MNG.play(buf).then(c => { this._mngAnimCache.set(imgName, c); obj._imgW = c.width; obj._imgH = c.height; this.requestRender(); }).catch(() => {});
                     if (mngBlob) { fetch(mngBlob).then(r => r.arrayBuffer()).then(_mngLoad).catch(() => {}); }
-                    else if (_isTauri && this._tauriPathIndex?.has(imgName.toLowerCase())) { _tauri.fs.readFile(this._tauriPathIndex.get(imgName.toLowerCase())).then(d => _mngLoad(d.buffer)).catch(() => {}); }
+                    else if (_isTauri && tauriPath) { _tauri.fs.readFile(tauriPath).then(d => _mngLoad(d.buffer)).catch(() => {}); }
                     else { fetch(`images/${imgName}`).then(r => r.arrayBuffer()).then(_mngLoad).catch(() => {}); }
                 }
                 const c = this._mngAnimCache.get(imgName);
