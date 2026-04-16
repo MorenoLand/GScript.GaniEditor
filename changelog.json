@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.1.48",
+    "date": "2026-04-16",
+    "tag": "GSuite",
+    "changes": [
+      "Code Beautify now uses working custom dropup menus for language and indent settings without duplicate controls showing in the footer",
+      "Level editor built-in objects now include a Character placement button that creates a showcharacter NPC preloaded with a starter script and nickname",
+      "Level editor object-list tables now pick up the active color scheme correctly on startup instead of waiting until you switch themes"
+    ]
+  },
+  {
     "version": "0.1.47",
     "date": "2026-04-15",
     "tag": "GSuite",

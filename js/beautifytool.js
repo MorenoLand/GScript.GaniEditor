@@ -149,7 +149,7 @@ class BeautifyTool {
         const stripComments = document.getElementById('beautifyStripComments')?.checked;
         const stripSpaces = document.getElementById('beautifyStripSpaces')?.checked;
         const beautify = document.getElementById('beautifyEnable')?.checked;
-        const indentSize = document.getElementById('beautifyIndent')?.value || '2';
+        const indentSize = document.getElementById('beautifyIndentValue')?.value || '2';
         if (stripComments) code = BeautifyTool._stripComments(code);
         if (stripSpaces) code = code.split('\n').filter(line => line.trim() !== '').map(line => line.trimEnd()).join('\n');
         if (beautify) {
@@ -239,19 +239,31 @@ class BeautifyTool {
 
     static _indentDropupMarkup() {
         return `<div data-beautify-indent-dropdown style="position:relative;display:inline-flex;">
-      <select id="beautifyIndent" style="display:none;">
-        <option value="2" selected>2 Spaces</option>
-        <option value="4">4 Spaces</option>
-        <option value="tab">Tab</option>
-      </select>
-      <button type="button" id="beautifyIndentBtn" class="custom-dropdown-button" style="background:#1a1a1a;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;color:#e0e0e0;padding:6px 10px;font-family:chevyray,monospace;display:inline-flex;align-items:center;gap:8px;">
+      <input id="beautifyIndentValue" type="hidden" value="2">
+      <button type="button" id="beautifyIndentBtn" class="custom-dropdown-button" style="background:#1a1a1a;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;color:#e0e0e0;padding:6px 10px;font-family:chevyray,monospace;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;">
         <span id="beautifyIndentLabel">2 Spaces</span>
         <span aria-hidden="true">▲</span>
       </button>
+
       <div id="beautifyIndentMenu" style="display:none;position:absolute;left:0;bottom:calc(100% + 2px);background:#2b2b2b;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;z-index:1000;min-width:100%;box-shadow:0 2px 8px rgba(0,0,0,0.5);">
         <div class="custom-dropdown-item" data-indent-value="2" style="padding:8px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;color:#e0e0e0;white-space:nowrap;">2 Spaces</div>
         <div class="custom-dropdown-item" data-indent-value="4" style="padding:8px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;color:#e0e0e0;white-space:nowrap;">4 Spaces</div>
         <div class="custom-dropdown-item" data-indent-value="tab" style="padding:8px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;color:#e0e0e0;white-space:nowrap;">Tab</div>
+      </div>
+    </div>`;
+    }
+
+    static _languageDropupMarkup() {
+        return `<div data-beautify-language-dropdown style="position:relative;display:inline-flex;">
+      <input id="beautifyLanguageValue" type="hidden" value="graalscript">
+      <button type="button" id="beautifyLanguageBtn" class="custom-dropdown-button" style="background:#1a1a1a;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;color:#e0e0e0;padding:6px 10px;font-family:chevyray,monospace;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;">
+        <span id="beautifyLanguageLabel">Graal Script</span>
+        <span aria-hidden="true">▲</span>
+      </button>
+
+      <div id="beautifyLanguageMenu" style="display:none;position:absolute;left:0;bottom:calc(100% + 2px);background:#2b2b2b;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;z-index:1000;min-width:100%;box-shadow:0 2px 8px rgba(0,0,0,0.5);">
+        <div class="custom-dropdown-item" data-language-value="graalscript" style="padding:8px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;color:#e0e0e0;white-space:nowrap;">Graal Script</div>
+        <div class="custom-dropdown-item" data-language-value="javascript" style="padding:8px;cursor:pointer;font-family:'chevyray',monospace;font-size:12px;color:#e0e0e0;white-space:nowrap;">JavaScript</div>
       </div>
     </div>`;
     }
@@ -312,11 +324,14 @@ class BeautifyTool {
             el.style.color = c.text;
             el.style.borderColor = c.border;
         });
-        root.querySelectorAll('#beautifyIndentMenu').forEach(el => {
+        root.querySelectorAll('#beautifyIndentValue, #beautifyLanguageValue').forEach(el => {
+            el.style.setProperty('display', 'none', 'important');
+        });
+        root.querySelectorAll('#beautifyIndentMenu, #beautifyLanguageMenu').forEach(el => {
             el.style.background = c.bg;
             el.style.borderColor = c.border;
         });
-        root.querySelectorAll('#beautifyIndentMenu .custom-dropdown-item').forEach(el => {
+        root.querySelectorAll('#beautifyIndentMenu .custom-dropdown-item, #beautifyLanguageMenu .custom-dropdown-item').forEach(el => {
             el.style.color = c.text;
         });
         root.querySelectorAll('button').forEach(el => {
@@ -390,10 +405,7 @@ class BeautifyTool {
     </div>
   </div>
   <div data-beautify-footer style="padding:10px 12px;border-top:1px solid #2a2a2a;display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-family:chevyray,monospace;font-size:12px;color:#ddd;">
-    <select id="beautifyLanguage" style="background:#1a1a1a;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;color:#e0e0e0;padding:6px 10px;font-family:chevyray,monospace;">
-      <option value="graalscript">Graal Script</option>
-      <option value="javascript">JavaScript</option>
-    </select>
+    ${BeautifyTool._languageDropupMarkup()}
     <label style="display:flex;align-items:center;gap:6px;"><input id="beautifyStripComments" type="checkbox" checked> Strip Comments</label>
     <label style="display:flex;align-items:center;gap:6px;"><input id="beautifyStripSpaces" type="checkbox"> Strip Spaces</label>
     <label style="display:flex;align-items:center;gap:6px;"><input id="beautifyEnable" type="checkbox"> Beautify Code</label>
@@ -422,7 +434,6 @@ class BeautifyTool {
         });
         document.addEventListener('mouseup', () => dragging = false);
 
-        dlg.querySelector('#beautifyLanguage').addEventListener('change', e => BeautifyTool._setLanguage(e.target.value));
         dlg.querySelector('#beautifyCopyBtn').addEventListener('click', async () => {
             const text = BeautifyTool._outputEditor?.getValue() || '';
             if (!text) return;
@@ -430,6 +441,7 @@ class BeautifyTool {
         });
         await BeautifyTool._ensureMonaco(dlg);
         BeautifyTool._setLanguage('graalscript');
+        BeautifyTool._initLanguageDropup(dlg);
         BeautifyTool._initIndentDropup(dlg);
         BeautifyTool.applyTheme(dlg);
     }
@@ -454,14 +466,15 @@ class BeautifyTool {
     }
 
     static _initIndentDropup(container) {
-        const select = container.querySelector('#beautifyIndent');
+        const select = container.querySelector('#beautifyIndentValue');
         const button = container.querySelector('#beautifyIndentBtn');
         const label = container.querySelector('#beautifyIndentLabel');
         const menu = container.querySelector('#beautifyIndentMenu');
         if (!select || !button || !label || !menu) return;
+        select.style.setProperty('display', 'none', 'important');
+        menu.style.display = 'none';
         const sync = () => {
-            const option = select.options[select.selectedIndex];
-            label.textContent = option ? option.textContent : '2 Spaces';
+            label.textContent = select.value === '4' ? '4 Spaces' : (select.value === 'tab' ? 'Tab' : '2 Spaces');
         };
         button.onclick = (e) => {
             e.preventDefault();
@@ -475,6 +488,38 @@ class BeautifyTool {
                 select.value = item.dataset.indentValue || '2';
                 sync();
                 menu.style.display = 'none';
+            };
+        });
+        document.addEventListener('click', (e) => {
+            if (!container.contains(e.target)) menu.style.display = 'none';
+        });
+        sync();
+    }
+
+    static _initLanguageDropup(container) {
+        const select = container.querySelector('#beautifyLanguageValue');
+        const button = container.querySelector('#beautifyLanguageBtn');
+        const label = container.querySelector('#beautifyLanguageLabel');
+        const menu = container.querySelector('#beautifyLanguageMenu');
+        if (!select || !button || !label || !menu) return;
+        select.style.setProperty('display', 'none', 'important');
+        menu.style.display = 'none';
+        const sync = () => {
+            label.textContent = select.value === 'javascript' ? 'JavaScript' : 'Graal Script';
+        };
+        button.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        };
+        menu.querySelectorAll('[data-language-value]').forEach(item => {
+            item.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                select.value = item.dataset.languageValue || 'graalscript';
+                sync();
+                menu.style.display = 'none';
+                BeautifyTool._setLanguage(select.value);
             };
         });
         document.addEventListener('click', (e) => {
@@ -499,10 +544,7 @@ class BeautifyTool {
     </div>
   </div>
   <div data-beautify-footer style="padding:10px 12px;border-top:1px solid #2a2a2a;display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-family:chevyray,monospace;font-size:12px;color:#ddd;">
-    <select id="beautifyLanguage" style="background:#1a1a1a;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;color:#e0e0e0;padding:6px 10px;font-family:chevyray,monospace;">
-      <option value="graalscript">Graal Script</option>
-      <option value="javascript">JavaScript</option>
-    </select>
+    ${BeautifyTool._languageDropupMarkup()}
     <label class="dialog-checkbox-row" data-beautify-check-row style="margin:0;"><span class="dialog-checkbox" aria-hidden="true"></span><input id="beautifyStripComments" type="checkbox" checked style="display:none;"><span>Strip Comments</span></label>
     <label class="dialog-checkbox-row" data-beautify-check-row style="margin:0;"><span class="dialog-checkbox" aria-hidden="true"></span><input id="beautifyStripSpaces" type="checkbox" style="display:none;"><span>Strip Spaces</span></label>
     <label class="dialog-checkbox-row" data-beautify-check-row style="margin:0;"><span class="dialog-checkbox" aria-hidden="true"></span><input id="beautifyEnable" type="checkbox" style="display:none;"><span>Beautify Code</span></label>
@@ -511,7 +553,6 @@ class BeautifyTool {
     <button id="beautifyClearBtnInline" style="background:#353535;border:1px solid #0a0a0a;border-top:1px solid #404040;border-left:1px solid #404040;color:#e0e0e0;padding:6px 12px;cursor:pointer;font-family:chevyray,monospace;font-size:12px;">Clear</button>
   </div>
 </div>`;
-        host.querySelector('#beautifyLanguage').addEventListener('change', e => BeautifyTool._setLanguage(e.target.value));
         host.querySelector('#beautifyProcessBtnInline').addEventListener('click', () => BeautifyTool._process());
         host.querySelector('#beautifyClearBtnInline').addEventListener('click', () => BeautifyTool._clearBoth());
         host.querySelector('#beautifyCopyBtnInline').addEventListener('click', async () => {
@@ -520,6 +561,7 @@ class BeautifyTool {
             await navigator.clipboard.writeText(text).catch(() => {});
         });
         BeautifyTool._initStyledCheckboxes(host);
+        BeautifyTool._initLanguageDropup(host);
         BeautifyTool._initIndentDropup(host);
         BeautifyTool._monacoReady = false;
         BeautifyTool._inputEditor?.dispose?.();

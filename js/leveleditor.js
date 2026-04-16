@@ -25,6 +25,22 @@ function _fmtKB(b) {
 const _CNAMES = ['white','yellow','orange','pink','red','darkred','lightgreen','green','darkgreen','lightblue','blue','darkblue','brown','cynober','purple','darkpurple','lightgray','gray','black','transparent'];
 const _CRGB = [[255,255,255],[255,255,0],[255,173,107],[255,192,203],[255,0,0],[139,0,0],[144,238,144],[0,128,0],[0,100,0],[173,216,230],[0,0,255],[0,0,139],[139,69,19],[255,215,0],[128,0,128],[64,0,64],[211,211,211],[128,128,128],[0,0,0],[0,0,0]];
 const _BODY_PALETTE = [{r:255,g:255,b:255,slot:1},{r:255,g:173,b:107,slot:0},{r:255,g:0,b:0,slot:2},{r:206,g:24,b:41,slot:3},{r:0,g:0,b:255,slot:4},{r:0,g:132,b:0,slot:-1},{r:0,g:0,b:0,slot:-1}];
+const _CHARACTER_NPC_SCRIPT = `// NPC Created by Stefan Knorr
+function onCreated() {
+    // Initialize the attributes
+    showcharacter();
+    this.nick = "Bob";
+    this.headimg = "head0.png";
+    this.shieldimg = "shield1.png";
+    this.bodyimg = "body.png";
+    this.colors[0] = "orange";
+    this.colors[1] = "white";
+    this.colors[2] = "blue";
+    this.colors[3] = "red";
+    this.colors[4] = "black";
+    shieldpower = 1;
+    this.dir = 2;
+}`;
 function parseNPCScript(script) {
     const r = {};
     script = script.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -1020,7 +1036,7 @@ class LevelEditor {
             if (!btn) return;
             btn.addEventListener('mousedown', (e) => {
                 if (e.button !== 0) return;
-                if (this._currentLevelIsZelda() && (type === 'npc' || type === 'chest')) return;
+                if (this._currentLevelIsZelda() && (type === 'npc' || type === 'character' || type === 'chest')) return;
                 this.draggingNewObjectType = type;
                 this.setObjectMode(type);
                 e.preventDefault();
@@ -1028,6 +1044,7 @@ class LevelEditor {
         };
         setupDragPlace('btnPlaceBaddy', 'baddy');
         setupDragPlace('btnPlaceNPC', 'npc');
+        setupDragPlace('btnPlaceCharacter', 'character');
         setupDragPlace('btnPlaceChest', 'chest');
         setupDragPlace('btnPlaceSign', 'sign');
         setupDragPlace('btnPlaceLink', 'link');
@@ -2160,6 +2177,7 @@ class LevelEditor {
             this.ctx.globalAlpha = 0.6;
             switch (this.draggingNewObjectType) {
                 case 'npc': this.drawNPC(gx, gy, tw, th, this._pendingCloneObj ? { properties: this._pendingCloneObj } : {}); break;
+                case 'character': this.drawNPC(gx, gy, tw, th, this._pendingCloneObj ? { properties: this._pendingCloneObj } : { properties: { code: _CHARACTER_NPC_SCRIPT } }); break;
                 case 'baddy': this.drawBaddy(gx, gy, tw, th, null); break;
                 case 'sign': this.drawSign(gx, gy, tw, th, {}); break;
                 case 'link': this.drawLink(gx, gy, tw, th, {}); break;
@@ -6335,6 +6353,7 @@ class LevelEditor {
                 <td style="padding:2px 6px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${o.properties?.image||''}">${o.properties?.image||''}</td>
             </tr>`
         ).join('') || `<tr><td colspan="3" style="padding:4px 6px;color:#666;">No NPCs</td></tr>`;
+        this.applyColorScheme(localStorage.getItem('editorColorScheme') || 'default');
     }
 
     _syncZoomUI() {
@@ -6370,18 +6389,20 @@ class LevelEditor {
     }
 
     placeObjectAt(x, y) {
-        if (this._currentLevelIsZelda() && (this.selectedObjectType === 'npc' || this.selectedObjectType === 'chest')) return;
+        if (this._currentLevelIsZelda() && (this.selectedObjectType === 'npc' || this.selectedObjectType === 'character' || this.selectedObjectType === 'chest')) return;
         this.pushUndo();
         const existingObj = this.level.getObjectAt(x, y);
         if (existingObj) {
             this.level.removeObject(existingObj);
         }
 
-        const obj = new LevelObject(x, y, this.selectedObjectType);
+        const placeType = this.selectedObjectType === 'character' ? 'npc' : this.selectedObjectType;
+        const obj = new LevelObject(x, y, placeType);
         const cloneProps = this._pendingCloneObj;
         this._pendingCloneObj = null;
         if (cloneProps) { obj.properties = { ...cloneProps }; }
         else if (this.selectedObjectType === 'npc') { const lib = this._dragObjectLibItem; this._dragObjectLibItem = null; obj.properties = lib ? { image: lib.image, code: lib.code, layerIndex: 0 } : { image: '', code: '', layerIndex: 0 }; }
+        else if (this.selectedObjectType === 'character') { this._dragObjectLibItem = null; obj.properties = { image: '', code: _CHARACTER_NPC_SCRIPT, layerIndex: 0 }; }
         else if (this.selectedObjectType === 'sign') obj.properties = { text: '', layerIndex: 0 };
         else if (this.selectedObjectType === 'link') obj.properties = { nextLevel: '', width: 2, height: 2, nextX: '0', nextY: '0', nextLayer: 0, layerIndex: 0 };
         else if (this.selectedObjectType === 'chest') obj.properties = { itemName: 'greenrupee', signIndex: 0, layerIndex: 0 };
@@ -6389,7 +6410,7 @@ class LevelEditor {
         this.render();
         this.saveSessionDebounced();
         if (!cloneProps) {
-            if (this.selectedObjectType === 'npc') this.openNPCEditor(obj);
+            if (this.selectedObjectType === 'npc' || this.selectedObjectType === 'character') this.openNPCEditor(obj);
             else if (this.selectedObjectType === 'sign') this.openSignEditor(obj);
             else if (this.selectedObjectType === 'link') this.openLinkEditor(obj);
             else if (this.selectedObjectType === 'chest') this.openChestEditor(obj);
@@ -6950,7 +6971,7 @@ class LevelEditor {
         this.objectMode = (objectType !== null && objectType !== 'delete');
         this.selectedObjectType = objectType;
 
-        const buttons = ['btnPlaceBaddy', 'btnPlaceNPC', 'btnPlaceChest', 'btnPlaceSign', 'btnPlaceLink', 'btnTileMode'];
+        const buttons = ['btnPlaceBaddy', 'btnPlaceNPC', 'btnPlaceCharacter', 'btnPlaceChest', 'btnPlaceSign', 'btnPlaceLink', 'btnTileMode'];
         buttons.forEach(id => {
             const btn = this.$(id);
             if (btn) {
@@ -8023,8 +8044,14 @@ class LevelEditor {
             .tile-edit-panel, .sprite-settings { background: ${c.panel} !important; border-color: ${c.border} !important; color: ${c.text} !important; }
             .object-button { background: ${c.panel} !important; color: ${c.text} !important; border-color: ${c.border} !important; }
             .object-button:hover { background: ${c.hover} !important; }
+            #npcListBody tr { background: ${c.panel} !important; color: ${c.text} !important; }
             #npcListBody tr:hover td { background: ${c.hover} !important; }
-            #npcListBody td { border-color: ${c.border} !important; color: ${c.text} !important; }
+            #npcListBody td { background: transparent !important; border-color: ${c.border} !important; color: ${c.text} !important; }
+            .settings-group table { background: ${c.bg} !important; color: ${c.text} !important; border-color: ${c.border} !important; }
+            .settings-group thead tr { background: ${c.hover} !important; color: ${c.text} !important; }
+            .settings-group thead th { background: ${c.hover} !important; color: ${c.text} !important; border-color: ${c.border} !important; }
+            .settings-group tbody tr { background: ${c.panel} !important; color: ${c.text} !important; }
+            .settings-group tbody td { background: transparent !important; color: ${c.text} !important; border-color: ${c.border} !important; }
             .dialog-content { background: ${c.panel} !important; border-color: ${c.border} !important; color: ${c.text} !important; }
             .dialog-content h3 { color: ${c.text} !important; border-color: ${c.border} !important; }
             .dialog-content label, .dialog-content p, .dialog-content span { color: ${c.text} !important; }
@@ -8264,6 +8291,7 @@ class LevelEditor {
         }
         document.addEventListener('click', (e) => { if (!btn.contains(e.target) && !drop.contains(e.target)) drop.style.display = 'none'; });
         this.initCustomCSS();
+        requestAnimationFrame(() => this.applyColorScheme(saved));
     }
 
     initCustomCSS() {
