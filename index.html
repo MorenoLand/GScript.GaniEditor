@@ -747,7 +747,7 @@
             switchToTab('gani');
             while (typeof parseGani !== 'function' || typeof addTab !== 'function') await new Promise(r => setTimeout(r, 100));
             const text = await window.__TAURI__.fs.readTextFile(fp).catch(() => null);
-            if (text) { const ani = parseGani(text); if (ani) { ani.fileName = name; addTab(ani, name); } }
+            if (text) { const ani = parseGani(text); if (ani) { ani.fileName = name; ani.fullPath = fp; addTab(ani, name); } }
             return;
         }
         switchToTab('level');

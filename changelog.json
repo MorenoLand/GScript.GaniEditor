@@ -1,5 +1,18 @@
 [
   {
+    "version": "0.1.53",
+    "date": "2026-04-29",
+    "tag": "GSuite",
+    "changes": [
+      "Sprite previews in the left list now show the same default images used on the canvas, so scripted/custom ganis no longer look blank when defaults are available",
+      "Sprite previews now include attached sprites, so characters built with ATTACHSPRITE show as a complete preview instead of only the parent piece",
+      "Rotating a parent sprite now rotates its attached sprites with it, matching the expected ROTATEEFFECT-style behavior",
+      "Dragging sprites with several ATTACHSPRITE children is smoother because attached sprite groups are cached while being redrawn",
+      "Fixed the Item dropdown sometimes showing an empty list even though the current frame has sprites",
+      "Undo and redo now refresh the canvas immediately, so changes no longer wait for an extra canvas click to appear"
+    ]
+  },
+  {
     "version": "0.1.52",
     "date": "2026-04-26",
     "tag": "GSuite",

@@ -1,7 +1,7 @@
 {
   "name": "gsuite",
-  "version": "0.1.52",
-  "description": "GSuite - A web-based suite of tools for Graal Online development.",
+  "version": "0.1.53",
+  "description": "GSuite - A web-based suite of tools for development.",
   "main": "anieditor.js",
   "scripts": {
     "dev": "node js/build-web.js && npx tauri dev",
