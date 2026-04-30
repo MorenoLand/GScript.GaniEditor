@@ -5206,7 +5206,9 @@ function showLoadingMessage(message, showOverlay = true) {
 
 // ── Monaco editor ────────────────────────────────────────────────────────────
 let monacoReady = null;
-if (window.require) {
+if (window.initGraalMonaco) {
+    monacoReady = window.initGraalMonaco({ disableCssValidation: true });
+} else if (window.require) {
     window.require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs' } });
     monacoReady = new Promise(resolve => {
         window.require(['vs/editor/editor.main'], () => {
@@ -5382,9 +5384,6 @@ if (window.require) {
     });
 } else {
     monacoReady = Promise.resolve(null);
-}
-if (window.initGraalMonaco) {
-    monacoReady = window.initGraalMonaco({ disableCssValidation: true });
 }
 function getMonacoTheme() {
     const v = getComputedStyle(document.documentElement).getPropertyValue('--monaco-theme').trim().replace(/['"]/g, '');
@@ -5570,7 +5569,7 @@ async function initGaniEditorStartup() {
     const spriteSplitterHandle = $("spriteSplitterHandle");
     if (spriteList && spriteEditPanel && spriteSplitterHandle) {
         const minSpriteListHeight = 140;
-        const minSpriteEditHeight = 220;
+        const minSpriteEditHeight = 120;
         let spriteSplitterStartY = 0;
         let spriteSplitterStartHeight = 0;
         const applySpriteListHeight = (height) => {
@@ -5588,7 +5587,7 @@ async function initGaniEditorStartup() {
             const maxListHeight = Math.max(minSpriteListHeight, availableHeight - minSpriteEditHeight);
             return Math.max(minSpriteListHeight, Math.min(desiredHeight, maxListHeight));
         };
-        applySpriteListHeight(300);
+        applySpriteListHeight(220);
         spriteSplitterHandle.onmousedown = (e) => {
             spriteSplitterDragging = true;
             leftCenterSplitterDragging = false;
@@ -10539,6 +10538,7 @@ ${editableActions.map(a => kbRow(a.label, a.key)).join("")}
     }
     spritePreviewCanvas.onmousedown = (e) => {
         if (!editingSprite) return;
+        spritePreviewCanvas.focus();
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -10679,6 +10679,18 @@ ${editableActions.map(a => kbRow(a.label, a.key)).join("")}
     });
     spritePreviewCanvas.addEventListener("keydown", (e) => {
         if (!editingSprite) return;
+        if (matchesKeybind(e, keybinds.cycleSprite, {ignoreShift: true})) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!editingSprite.attachedSprites.length) return;
+            if (e.shiftKey) {
+                selectedAttachedSprite = selectedAttachedSprite <= 0 ? editingSprite.attachedSprites.length - 1 : selectedAttachedSprite - 1;
+            } else {
+                selectedAttachedSprite = (selectedAttachedSprite + 1) % editingSprite.attachedSprites.length;
+            }
+            drawSpritePreview();
+            return;
+        }
         if (e.key === "Delete" && selectedAttachedSprite >= 0 && selectedAttachedSprite < editingSprite.attachedSprites.length) {
             const oldState = serializeAnimationState();
             const deleted = editingSprite.attachedSprites.splice(selectedAttachedSprite, 1)[0];

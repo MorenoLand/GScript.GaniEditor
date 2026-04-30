@@ -180,7 +180,7 @@ body.tab-dragging, body.tab-dragging * { user-select:none !important; -webkit-us
 .sprite-item.selected { border-color:#00ff00; border-width:2px; }
 .sprite-item canvas { width:100%; height:auto; max-width:64px; max-height:64px; object-fit:contain; flex-shrink:0; image-rendering:pixelated; image-rendering:-moz-crisp-edges; image-rendering:crisp-edges; }
 .sprite-item > div { font-size:12px; margin-top:8px; line-height:1.5; font-family:"chevyray",monospace; color:#e0e0e0; text-shadow:1px 1px 2px rgba(0,0,0,0.8),0 0 4px rgba(0,0,0,0.5); }
-.sprite-edit-panel { background:#2b2b2b; border-top:1px solid #0a0a0a; overflow:auto; flex:1 1 0; min-height:220px; min-width:0; width:100%; max-width:100%; align-self:stretch; }
+.sprite-edit-panel { background:#2b2b2b; border-top:1px solid #0a0a0a; overflow:auto; flex:1 1 0; min-height:120px; min-width:0; width:100%; max-width:100%; align-self:stretch; }
 .sprite-settings { padding:8px; min-width:0; overflow-x:hidden; }
 .sprite-settings label { display:block; margin-bottom:6px; margin-top:10px; font-size:12px; font-family:"chevyray",monospace; border:none; border-bottom:none; border-top:none; box-shadow:none; }
 .sprite-settings label:first-child { margin-top:4px; }
@@ -275,7 +275,8 @@ body.tab-dragging, body.tab-dragging * { user-select:none !important; -webkit-us
 .sounds-list li { padding:8px; background:#353535; border:1px solid #0a0a0a; border-top:1px solid #404040; border-left:1px solid #404040; margin-bottom:4px; display:flex; align-items:center; gap:8px; }
 .sounds-list li input { flex:1; background:#1a1a1a; border:1px solid #0a0a0a; border-top:1px solid #404040; border-left:1px solid #404040; color:#e0e0e0; padding:8px; font-family:"chevyray",monospace; font-size:12px; }
 .sprite-preview { width:100%; height:200px; background:#353535; border:1px solid #0a0a0a; border-top:1px solid #404040; border-left:1px solid #404040; }
-#spritePreviewCanvas { display:block; width:100%; height:100%; }
+#spritePreviewCanvas { display:block; width:100%; height:100%; outline:none; }
+#spritePreviewCanvas:focus { outline:none; }
 .number-input-wrapper { position:relative; display:block; width:100%; }
 .number-spinner { position:absolute; right:2px; top:-3px; width:32px; height:calc(50% - 1px); background:none; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:14px; color:#e0e0e0; user-select:none; -webkit-user-select:none; letter-spacing:2px; }
 .number-spinner:hover { color:#ffffff; }
